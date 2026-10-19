@@ -2,13 +2,87 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-coastal-powder: #DCEAF3;
+  --color-coastal-lavender: #E8E2EF;
+  --color-coastal-peach: #F5E2D6;
+  --color-coastal-cream: #FBF8F2;
+  --color-coastal-cream-dark: #F3EDE2;
+  --color-coastal-rose: #C98F9B;
+  --color-coastal-mauve: #AA96B5;
+  --color-coastal-cerulean: #6D9EBA;
+  --color-coastal-sand: #C9B69B;
+  --color-coastal-brown: #8C7565;
+  --color-coastal-text: #393640;
+  --color-coastal-text-muted: #746E79;
+  --color-coastal-border: #E2D9D5;
+  --color-coastal-safe: #B8D6BE;
+  --color-coastal-warning: #E6CD8C;
+  --color-coastal-suspicious: #DCA77C;
+  --color-coastal-critical: #CC858D;
+  --color-coastal-neutral: #A9BAC7;
+}
+
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 antialiased font-sans;
+    background: linear-gradient(135deg, #DCEAF3 0%, #E8E2EF 50%, #F5E2D6 100%);
+    background-attachment: fixed;
+    color: #393640;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
 }
 
-/* React Flow theme integration */
+/* React Flow theme integration with Coastal Pastel design */
+.react-flow__renderer {
+  background: #FBF8F2;
+}
+
 .react-flow__node {
-  border-radius: 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.react-flow__node:hover {
+  transform: translateY(-2px);
+}
+
+.react-flow__controls {
+  background: #FBF8F2 !important;
+  border: 1px solid #E2D9D5 !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 12px rgba(57, 54, 64, 0.06) !important;
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background: #FBF8F2 !important;
+  border-bottom: 1px solid #E2D9D5 !important;
+  fill: #393640 !important;
+  color: #393640 !important;
+}
+
+.react-flow__controls-button:hover {
+  background: #E8E2EF !important;
+}
+
+/* Subtle scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CDC2BC;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #AA96B5;
 }

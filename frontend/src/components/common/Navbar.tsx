@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { Radio, Activity, Share2, Send, ShieldAlert } from 'lucide-react';
 import { useHealth } from '../../hooks/useHealth';
 
@@ -9,88 +9,91 @@ export const Navbar: React.FC = () => {
   const isHealthy = health?.status === 'ok';
 
   return (
-    <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
+    <header className="bg-coastal-cream/90 backdrop-blur-md border-b border-coastal-border sticky top-0 z-50 shadow-coastal-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-600/20 text-red-500 rounded-lg border border-red-500/30">
-              <Radio className="w-6 h-6 animate-pulse" />
+          <Link to="/" className="flex items-center gap-3">
+            <div className="p-2 bg-coastal-powder text-coastal-cerulean rounded-xl border border-coastal-border shadow-coastal-sm">
+              <Radio className="w-5 h-5" />
             </div>
             <div>
-              <span className="font-bold text-lg text-white tracking-tight flex items-center gap-2">
-                DisasterComm <span className="text-xs px-2 py-0.5 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50">Mesh Router</span>
+              <span className="font-bold text-lg text-coastal-text tracking-tight flex items-center gap-2">
+                DisasterComm
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-coastal-lavender text-coastal-mauve border border-coastal-border">
+                  Mesh Router
+                </span>
               </span>
-              <p className="text-xs text-slate-400 hidden sm:block">
+              <p className="text-xs text-coastal-text-muted hidden sm:block">
                 Priority Routing & Emergency Network
               </p>
             </div>
-          </div>
+          </Link>
 
-          <nav className="flex items-center gap-2">
+          <nav className="flex items-center gap-1.5 bg-coastal-cream-dark/60 p-1 rounded-xl border border-coastal-border">
             <NavLink
-              to="/"
+              to="/dashboard"
               className={({ isActive }) =>
-                `flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                `flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    ? 'bg-coastal-cerulean text-white shadow-coastal-sm'
+                    : 'text-coastal-text-muted hover:bg-coastal-powder/60 hover:text-coastal-text'
                 }`
               }
             >
-              <Activity className="w-4 h-4" />
+              <Activity className="w-3.5 h-3.5" />
               <span>Dashboard</span>
             </NavLink>
 
             <NavLink
               to="/topology"
               className={({ isActive }) =>
-                `flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                `flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    ? 'bg-coastal-cerulean text-white shadow-coastal-sm'
+                    : 'text-coastal-text-muted hover:bg-coastal-powder/60 hover:text-coastal-text'
                 }`
               }
             >
-              <Share2 className="w-4 h-4" />
+              <Share2 className="w-3.5 h-3.5" />
               <span>Mesh Topology</span>
             </NavLink>
 
             <NavLink
               to="/simulation"
               className={({ isActive }) =>
-                `flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                `flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    ? 'bg-coastal-cerulean text-white shadow-coastal-sm'
+                    : 'text-coastal-text-muted hover:bg-coastal-powder/60 hover:text-coastal-text'
                 }`
               }
             >
-              <Send className="w-4 h-4" />
+              <Send className="w-3.5 h-3.5" />
               <span>Priority Router</span>
             </NavLink>
           </nav>
 
           <div className="flex items-center gap-2">
             <div
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
                 isHealthy
-                  ? 'bg-emerald-950/60 text-emerald-400 border-emerald-700/50'
-                  : 'bg-rose-950/60 text-rose-400 border-rose-700/50'
+                  ? 'bg-coastal-safe/30 text-coastal-safe-text border-coastal-safe'
+                  : 'bg-coastal-critical/20 text-coastal-critical-text border-coastal-critical'
               }`}
               title={`Database: ${health?.database ?? 'unknown'}`}
             >
               <span
                 className={`w-2 h-2 rounded-full ${
-                  isHealthy ? 'bg-emerald-400 animate-ping' : 'bg-rose-400'
+                  isHealthy ? 'bg-coastal-safe-text' : 'bg-coastal-critical'
                 }`}
               />
               <span className="hidden md:inline">
-                {isHealthy ? 'Backend Connected' : 'Offline Mode'}
+                {isHealthy ? 'System Active' : 'Offline Mode'}
               </span>
             </div>
             {!isHealthy && (
               <span title="Backend connection issue">
-                <ShieldAlert className="w-4 h-4 text-rose-400" />
+                <ShieldAlert className="w-4 h-4 text-coastal-critical" />
               </span>
             )}
           </div>

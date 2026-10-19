@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import App from '../App';
 
 describe('Emergency Communication Network Frontend', () => {
   beforeEach(() => {
-    // Mock global fetch for health check and initial page load
+    // Reset browser history / path to root
+    window.history.pushState({}, 'Test', '/');
+
+    // Mock global fetch for health check and initial API calls
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation((url: string) => {
@@ -58,18 +61,47 @@ describe('Emergency Communication Network Frontend', () => {
     );
   });
 
-  it('renders the branding and navigation elements', async () => {
+  it('renders the landing page hero section at root route / without displaying the dashboard immediately', async () => {
+    render(<App />);
+    
+    // Verifies full title is displayed on landing page
+    expect(
+      screen.getByRole('heading', {
+        level: 1,
+        name: /Disaster-Resistant Emergency Communication Network with Priority Routing/i,
+      }),
+    ).toBeInTheDocument();
+
+    // Verifies supporting explanation text is present
+    expect(
+      screen.getByText(/Engineered for crisis environments where conventional internet infrastructure has collapsed/i),
+    ).toBeInTheDocument();
+
+    // Verifies single prominent action button exists
+    const exploreBtn = screen.getByRole('link', { name: /Explore Dashboard/i });
+    expect(exploreBtn).toBeInTheDocument();
+    expect(exploreBtn).toHaveAttribute('href', '/dashboard');
+
+    // Dashboard header should NOT be present on initial landing page load
+    expect(screen.queryByText(/Emergency Operations Dashboard/i)).not.toBeInTheDocument();
+  });
+
+  it('renders branding and top-level navigation links', async () => {
     render(<App />);
     expect(screen.getByText(/DisasterComm/i)).toBeInTheDocument();
     expect(screen.getByText(/Mesh Router/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Dashboard$/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /mesh topology/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /priority router/i })).toBeInTheDocument();
   });
 
-  it('renders operations dashboard headers and action buttons', async () => {
+  it('navigates to the dashboard when clicking Explore Dashboard', async () => {
     render(<App />);
-    expect(screen.getByText(/Emergency Operations Dashboard/i)).toBeInTheDocument();
+    const exploreBtn = screen.getByRole('link', { name: /Explore Dashboard/i });
+    fireEvent.click(exploreBtn);
+
+    // Dashboard elements should now be visible
+    expect(await screen.findByText(/Emergency Operations Dashboard/i)).toBeInTheDocument();
     expect(screen.getByText(/Route Emergency Packet/i)).toBeInTheDocument();
   });
 });

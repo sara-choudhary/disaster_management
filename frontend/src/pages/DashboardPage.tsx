@@ -22,6 +22,7 @@ import {
 import { NetworkNode, EmergencyMessage } from '../types';
 import { fetchNodes } from '../api/nodes';
 import { fetchDispatchedMessages } from '../api/simulation';
+import { coastalColors } from '../theme/tokens';
 
 export const DashboardPage: React.FC = () => {
   const [nodes, setNodes] = useState<NetworkNode[]>([]);
@@ -67,45 +68,48 @@ export const DashboardPage: React.FC = () => {
   };
 
   const chartData = [
-    { name: 'SOS Critical', count: priorityCounts.CRITICAL_SOS, color: '#ef4444' },
-    { name: 'High Medical', count: priorityCounts.HIGH_MEDICAL, color: '#f97316' },
-    { name: 'Logistics', count: priorityCounts.NORMAL_LOGISTICS, color: '#3b82f6' },
-    { name: 'Routine', count: priorityCounts.LOW_ROUTINE, color: '#10b981' },
+    { name: 'Critical SOS', count: priorityCounts.CRITICAL_SOS, color: coastalColors.critical },
+    { name: 'High Medical', count: priorityCounts.HIGH_MEDICAL, color: coastalColors.suspicious },
+    { name: 'Logistics', count: priorityCounts.NORMAL_LOGISTICS, color: coastalColors.mutedCerulean },
+    { name: 'Routine', count: priorityCounts.LOW_ROUTINE, color: coastalColors.safe },
   ];
 
   return (
     <div className="space-y-6">
+      {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-            <Radio className="w-6 h-6 text-red-500" />
+          <h1 className="text-2xl font-bold tracking-tight text-coastal-text flex items-center gap-2.5">
+            <div className="p-2 bg-coastal-rose/20 text-coastal-rose rounded-xl border border-coastal-rose/30">
+              <Radio className="w-5 h-5" />
+            </div>
             Emergency Operations Dashboard
           </h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-coastal-text-muted mt-1">
             Real-time status of disconnected mesh nodes and priority-routed communications.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Link
             to="/simulation"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-sm transition-colors shadow-lg shadow-red-950/50"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-coastal-rose hover:bg-coastal-rose/90 text-white rounded-xl font-medium text-xs transition-all shadow-coastal-sm"
           >
             <Send className="w-4 h-4" />
             Route Emergency Packet
           </Link>
           <Link
             to="/topology"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-medium text-sm transition-colors border border-slate-700"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-coastal-cream hover:bg-coastal-powder text-coastal-text rounded-xl font-medium text-xs transition-all border border-coastal-border shadow-coastal-sm"
           >
-            <Activity className="w-4 h-4 text-blue-400" />
+            <Activity className="w-4 h-4 text-coastal-cerulean" />
             View Topology
           </Link>
         </div>
       </div>
 
       {error && (
-        <div className="p-4 bg-rose-950/40 border border-rose-800/80 rounded-xl text-rose-300 text-sm flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+        <div className="p-4 bg-coastal-critical/15 border border-coastal-critical/40 rounded-2xl text-coastal-critical-text text-xs flex items-center gap-3 shadow-coastal-sm">
+          <AlertTriangle className="w-4 h-4 text-coastal-critical shrink-0" />
           <span>
             {error}. Ensure the Python FastAPI server is running on port 8000.
           </span>
@@ -114,76 +118,84 @@ export const DashboardPage: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <div className="bg-coastal-cream border border-coastal-border rounded-2xl p-5 shadow-coastal-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-coastal-text-muted uppercase tracking-wider">
               Total Mesh Nodes
             </span>
-            <Activity className="w-5 h-5 text-blue-400" />
+            <div className="p-1.5 bg-coastal-powder text-coastal-cerulean rounded-lg">
+              <Activity className="w-4 h-4" />
+            </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-white">
+            <span className="text-3xl font-extrabold text-coastal-text">
               {loading ? '...' : totalNodes}
             </span>
-            <span className="text-xs text-slate-400">Registered</span>
+            <span className="text-xs text-coastal-text-muted">Registered</span>
           </div>
-          <div className="mt-2 text-xs text-slate-400 flex items-center gap-1">
-            <span className="text-emerald-400 font-medium">{activeNodes} active</span>
+          <div className="mt-2 text-xs text-coastal-text-muted flex items-center gap-1.5 font-medium">
+            <span className="text-coastal-safe-text">{activeNodes} active</span>
             <span>•</span>
-            <span className="text-amber-400 font-medium">{degradedNodes} degraded</span>
+            <span className="text-coastal-warning-text">{degradedNodes} degraded</span>
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <div className="bg-coastal-cream border border-coastal-border rounded-2xl p-5 shadow-coastal-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-coastal-text-muted uppercase tracking-wider">
               Network Health
             </span>
-            <Zap className="w-5 h-5 text-emerald-400" />
+            <div className="p-1.5 bg-coastal-safe/30 text-coastal-safe-text rounded-lg">
+              <Zap className="w-4 h-4" />
+            </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-white">
+            <span className="text-3xl font-extrabold text-coastal-text">
               {loading ? '...' : `${offlineNodes === 0 ? '100' : Math.round((activeNodes / (totalNodes || 1)) * 100)}%`}
             </span>
-            <span className="text-xs text-emerald-400 font-medium">Availability</span>
+            <span className="text-xs text-coastal-safe-text font-medium">Availability</span>
           </div>
-          <div className="mt-2 text-xs text-slate-400">
+          <div className="mt-2 text-xs text-coastal-text-muted">
             {offlineNodes} node(s) severed / unreachable
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <div className="bg-coastal-cream border border-coastal-border rounded-2xl p-5 shadow-coastal-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-coastal-text-muted uppercase tracking-wider">
               Average Battery
             </span>
-            <Battery className="w-5 h-5 text-amber-400" />
+            <div className="p-1.5 bg-coastal-warning/30 text-coastal-warning-text rounded-lg">
+              <Battery className="w-4 h-4" />
+            </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-white">
+            <span className="text-3xl font-extrabold text-coastal-text">
               {loading ? '...' : `${avgBattery}%`}
             </span>
-            <span className="text-xs text-slate-400">Fleet telemetry</span>
+            <span className="text-xs text-coastal-text-muted">Fleet telemetry</span>
           </div>
-          <div className="mt-2 text-xs text-slate-400">
+          <div className="mt-2 text-xs text-coastal-text-muted">
             Solar & generator backup active
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <div className="bg-coastal-cream border border-coastal-border rounded-2xl p-5 shadow-coastal-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-coastal-text-muted uppercase tracking-wider">
               Dispatched Packets
             </span>
-            <Send className="w-5 h-5 text-indigo-400" />
+            <div className="p-1.5 bg-coastal-lavender text-coastal-mauve rounded-lg">
+              <Send className="w-4 h-4" />
+            </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-white">
+            <span className="text-3xl font-extrabold text-coastal-text">
               {loading ? '...' : messages.length}
             </span>
-            <span className="text-xs text-indigo-300 font-medium">Priority routed</span>
+            <span className="text-xs text-coastal-mauve font-medium">Priority routed</span>
           </div>
-          <div className="mt-2 text-xs text-slate-400">
+          <div className="mt-2 text-xs text-coastal-text-muted">
             Deterministic Dijkstra graph
           </div>
         </div>
@@ -191,24 +203,26 @@ export const DashboardPage: React.FC = () => {
 
       {/* Grid: Priority breakdown & Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 lg:col-span-1 flex flex-col">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-300 mb-4">
+        <div className="bg-coastal-cream border border-coastal-border rounded-2xl p-5 lg:col-span-1 flex flex-col shadow-coastal-sm">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-coastal-text-muted mb-4">
             Priority Queue Distribution
           </h2>
           <div className="h-48 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} />
-                <YAxis stroke="#64748b" fontSize={11} tickLine={false} allowDecimals={false} />
+                <XAxis dataKey="name" stroke={coastalColors.secondaryText} fontSize={11} tickLine={false} />
+                <YAxis stroke={coastalColors.secondaryText} fontSize={11} tickLine={false} allowDecimals={false} />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#0f172a',
-                    borderColor: '#334155',
-                    borderRadius: '8px',
+                    backgroundColor: coastalColors.cream,
+                    borderColor: coastalColors.border,
+                    borderRadius: '12px',
                     fontSize: '12px',
+                    color: coastalColors.mainText,
+                    boxShadow: '0 4px 12px rgba(57, 54, 64, 0.08)',
                   }}
                 />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
@@ -216,86 +230,86 @@ export const DashboardPage: React.FC = () => {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="mt-4 pt-4 border-t border-slate-800 grid grid-cols-2 gap-2 text-xs text-slate-400">
+          <div className="mt-4 pt-4 border-t border-coastal-border grid grid-cols-2 gap-2 text-xs text-coastal-text-muted font-medium">
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-red-500" /> SOS Critical
+              <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: coastalColors.critical }} /> Critical SOS
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-orange-500" /> High Medical
+              <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: coastalColors.suspicious }} /> High Medical
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-blue-500" /> Logistics
+              <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: coastalColors.mutedCerulean }} /> Logistics
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Routine
+              <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: coastalColors.safe }} /> Routine
             </div>
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 lg:col-span-2">
+        <div className="bg-coastal-cream border border-coastal-border rounded-2xl p-5 lg:col-span-2 shadow-coastal-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-300">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-coastal-text-muted">
               Recent Network Communications
             </h2>
             <Link
               to="/simulation"
-              className="text-xs text-blue-400 hover:text-blue-300 font-medium"
+              className="text-xs text-coastal-cerulean hover:text-coastal-brown font-semibold transition-colors"
             >
               Simulate New Packet &rarr;
             </Link>
           </div>
 
           {messages.length === 0 ? (
-            <div className="text-center py-10 text-slate-500 text-sm">
+            <div className="text-center py-10 text-coastal-text-muted text-xs">
               No emergency messages routed yet. Run a priority route simulation to view packet hops.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-800 text-slate-400">
-                    <th className="pb-2 font-medium">Message ID</th>
-                    <th className="pb-2 font-medium">Priority</th>
-                    <th className="pb-2 font-medium">Route Path</th>
-                    <th className="pb-2 font-medium">Hops</th>
-                    <th className="pb-2 font-medium">Status</th>
+                  <tr className="border-b border-coastal-border text-coastal-text-muted font-semibold">
+                    <th className="pb-2.5">Message ID</th>
+                    <th className="pb-2.5">Priority</th>
+                    <th className="pb-2.5">Route Path</th>
+                    <th className="pb-2.5">Hops</th>
+                    <th className="pb-2.5">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody className="divide-y divide-coastal-border">
                   {messages.map((m) => (
-                    <tr key={m.id} className="hover:bg-slate-800/30">
-                      <td className="py-2.5 font-mono text-slate-300">{m.message_id}</td>
-                      <td className="py-2.5">
+                    <tr key={m.id} className="hover:bg-coastal-powder/40 transition-colors">
+                      <td className="py-3 font-mono font-medium text-coastal-text">{m.message_id}</td>
+                      <td className="py-3">
                         <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                             m.priority === 'CRITICAL_SOS'
-                              ? 'bg-red-950 text-red-400 border border-red-800'
+                              ? 'bg-coastal-critical/20 text-coastal-critical-text border border-coastal-critical/40'
                               : m.priority === 'HIGH_MEDICAL'
-                              ? 'bg-orange-950 text-orange-400 border border-orange-800'
+                              ? 'bg-coastal-suspicious/20 text-coastal-suspicious-text border border-coastal-suspicious/40'
                               : m.priority === 'NORMAL_LOGISTICS'
-                              ? 'bg-blue-950 text-blue-400 border border-blue-800'
-                              : 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                              ? 'bg-coastal-powder text-coastal-cerulean border border-coastal-border'
+                              : 'bg-coastal-safe/25 text-coastal-safe-text border border-coastal-safe/50'
                           }`}
                         >
                           {m.priority}
                         </span>
                       </td>
-                      <td className="py-2.5 text-slate-300 truncate max-w-xs" title={m.route_taken}>
+                      <td className="py-3 text-coastal-text truncate max-w-xs" title={m.route_taken}>
                         {m.route_taken || 'No path available'}
                       </td>
-                      <td className="py-2.5 text-slate-400">{m.hop_count}</td>
-                      <td className="py-2.5">
-                        <span className="inline-flex items-center gap-1 text-emerald-400">
+                      <td className="py-3 text-coastal-text-muted font-mono">{m.hop_count}</td>
+                      <td className="py-3">
+                        <span className="inline-flex items-center gap-1 font-semibold text-xs">
                           {m.status === 'DELIVERED' ? (
-                            <>
+                            <span className="text-coastal-safe-text flex items-center gap-1">
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               Delivered
-                            </>
+                            </span>
                           ) : (
-                            <>
-                              <Clock className="w-3.5 h-3.5 text-rose-400" />
-                              <span className="text-rose-400">{m.status}</span>
-                            </>
+                            <span className="text-coastal-critical-text flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5" />
+                              {m.status}
+                            </span>
                           )}
                         </span>
                       </td>

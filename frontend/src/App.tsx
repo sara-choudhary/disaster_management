@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
+import { LandingPage } from './pages/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { NetworkTopologyPage } from './pages/NetworkTopologyPage';
 import { SimulationPage } from './pages/SimulationPage';
@@ -11,7 +12,8 @@ export const App: React.FC = () => {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<AppLayout />}>
-          <Route index element={<DashboardPage />} />
+          <Route index element={<LandingPage />} />
+          <Route path="dashboard" element={<DashboardPage />} />
           <Route path="topology" element={<NetworkTopologyPage />} />
           <Route path="simulation" element={<SimulationPage />} />
           <Route path="*" element={<NotFoundPage />} />
