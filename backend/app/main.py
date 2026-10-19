@@ -1,22 +1,25 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from datetime import datetime
+import uuid
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.api import api_router
 from app.api.v1.endpoints.health import router as health_router
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
-from app.services.simulation import seed_default_nodes_if_empty
+from app.core.websocket import manager
+from app.services.seed_data import seed_database_idempotent
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize SQLite database tables
     Base.metadata.create_all(bind=engine)
-    # Seed default nodes on initial launch
+    # Idempotently seed default data on launch
     db = SessionLocal()
     try:
-        seed_default_nodes_if_empty(db)
+        seed_database_idempotent(db)
     finally:
         db.close()
     yield
@@ -53,4 +56,39 @@ def root_info():
         "docs_url": "/docs",
         "api_v1_prefix": settings.API_V1_STR,
         "health_check": "/api/health",
+        "websocket_events": "/ws/network-events",
     }
+
+
+@app.websocket("/ws/network-events")
+@app.websocket("/api/v1/ws/network-events")
+async def websocket_network_events(websocket: WebSocket):
+    """Real-time WebSocket endpoint for streaming simulation events, link state changes, and alerts."""
+    await manager.connect(websocket)
+    try:
+        await websocket.send_json({
+            "event_id": f"EVT-CONN-{uuid.uuid4().hex[:8].upper()}",
+            "timestamp": datetime.utcnow().isoformat(),
+            "event_type": "CONNECTED",
+            "event": "CONNECTED",
+            "severity": "INFO",
+            "resource_id": "WS-SERVER",
+            "affected_resource": "WS-SERVER",
+            "message": "Connected to emergency network telemetry feed",
+        })
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping" or "ping" in data.lower():
+                await websocket.send_json({
+                    "event_id": f"EVT-PONG-{uuid.uuid4().hex[:8].upper()}",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "event_type": "PONG",
+                    "event": "PONG",
+                    "severity": "INFO",
+                    "resource_id": "WS-SERVER",
+                    "affected_resource": "WS-SERVER",
+                })
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception:
+        manager.disconnect(websocket)

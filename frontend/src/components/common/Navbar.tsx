@@ -19,7 +19,7 @@ export const Navbar: React.FC = () => {
             <div>
               <span className="font-bold text-lg text-coastal-text tracking-tight flex items-center gap-2">
                 DisasterComm
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-coastal-lavender text-coastal-mauve border border-coastal-border">
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-coastal-lavender text-coastal-mauve border border-coastal-border">
                   Mesh Router
                 </span>
               </span>
@@ -75,7 +75,7 @@ export const Navbar: React.FC = () => {
 
           <div className="flex items-center gap-2">
             <div
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold border ${
                 isHealthy
                   ? 'bg-coastal-safe/30 text-coastal-safe-text border-coastal-safe'
                   : 'bg-coastal-critical/20 text-coastal-critical-text border-coastal-critical'

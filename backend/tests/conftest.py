@@ -4,8 +4,11 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
-from app.main import app
 from app.core.database import Base, get_db
+from app import main as main_module
+from app.main import app
+from app import models as _app_models  # Register all models on Base.metadata
+from app.services.seed_data import seed_database_idempotent
 from app.services.simulation import seed_default_nodes_if_empty
 
 # Isolated in-memory SQLite database for test runs
@@ -18,11 +21,16 @@ test_engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
+# Point main app engine and session to test_engine during tests
+main_module.engine = test_engine
+main_module.SessionLocal = TestingSessionLocal
+
 
 @pytest.fixture(scope="session", autouse=True)
 def init_db():
     Base.metadata.create_all(bind=test_engine)
     db = TestingSessionLocal()
+    seed_database_idempotent(db)
     seed_default_nodes_if_empty(db)
     db.close()
     yield

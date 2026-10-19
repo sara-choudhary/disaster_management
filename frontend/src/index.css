@@ -8,19 +8,37 @@
   --color-coastal-peach: #F5E2D6;
   --color-coastal-cream: #FBF8F2;
   --color-coastal-cream-dark: #F3EDE2;
-  --color-coastal-rose: #C98F9B;
+  --color-coastal-rose: #9E4A59;
+  --color-coastal-rose-light: #C98F9B;
+  --color-coastal-dusty-rose: #9E4A59;
+  --color-coastal-dusty-rose-dark: #843B48;
+  --color-coastal-dusty-rose-light: #C98F9B;
   --color-coastal-mauve: #AA96B5;
-  --color-coastal-cerulean: #6D9EBA;
+  --color-coastal-mauve-dark: #6A5377;
+  --color-coastal-cerulean: #2E6F9E;
+  --color-coastal-cerulean-light: #6D9EBA;
+  --color-coastal-cerulean-dark: #24597F;
   --color-coastal-sand: #C9B69B;
   --color-coastal-brown: #8C7565;
+  --color-coastal-mountain: #8C7565;
+  --color-coastal-warm-orange: #C96D3B;
   --color-coastal-text: #393640;
   --color-coastal-text-muted: #746E79;
   --color-coastal-border: #E2D9D5;
+  --color-coastal-border-dark: #CDC2BC;
   --color-coastal-safe: #B8D6BE;
+  --color-coastal-safe-border: #8BBF96;
+  --color-coastal-safe-text: #2D5936;
   --color-coastal-warning: #E6CD8C;
+  --color-coastal-warning-border: #D8B868;
+  --color-coastal-warning-text: #684F17;
   --color-coastal-suspicious: #DCA77C;
+  --color-coastal-suspicious-text: #613615;
   --color-coastal-critical: #CC858D;
+  --color-coastal-critical-border: #B86872;
+  --color-coastal-critical-text: #5E2229;
   --color-coastal-neutral: #A9BAC7;
+  --color-coastal-neutral-text: #264253;
 }
 
 @layer base {

@@ -13,8 +13,8 @@ export const Footer: React.FC = () => {
           <span className="flex items-center gap-1">
             <WifiOff className="w-3.5 h-3.5 text-coastal-sand" /> Offline-First Architecture
           </span>
-          <span className="text-[11px] bg-coastal-powder px-2 py-0.5 rounded-full border border-coastal-border text-coastal-text">
-            FastAPI + SQLite + React TS
+          <span className="text-[11px] text-coastal-text-muted">
+            FastAPI &bull; SQLite &bull; React TS
           </span>
         </div>
       </div>

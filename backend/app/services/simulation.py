@@ -6,72 +6,17 @@ from typing import List, Dict, Tuple, Optional
 from sqlalchemy.orm import Session
 
 from app.models.node import NetworkNode, NodeStatus
+from app.models.link import NetworkLink
 from app.models.message import EmergencyMessage, MessagePriority, MessageStatus
+from app.models.simulation import SimulationRun
+from app.models.event import NetworkEvent
 from app.schemas.simulation import SimulationRunRequest, SimulationRunResponse, HopDetail
-
-
-DEFAULT_NODES = [
-    {
-        "node_id": "HQ-COMMAND-01",
-        "name": "Central Emergency Command",
-        "node_type": "command_center",
-        "status": NodeStatus.ACTIVE.value,
-        "battery_level": 100.0,
-        "pos_x": 100.0,
-        "pos_y": 150.0,
-    },
-    {
-        "node_id": "RELAY-NORTH-02",
-        "name": "Northern Hill Mesh Relay",
-        "node_type": "relay",
-        "status": NodeStatus.ACTIVE.value,
-        "battery_level": 85.0,
-        "pos_x": 300.0,
-        "pos_y": 80.0,
-    },
-    {
-        "node_id": "HOSPITAL-TRIAGE-03",
-        "name": "District Hospital Triage",
-        "node_type": "hospital",
-        "status": NodeStatus.ACTIVE.value,
-        "battery_level": 92.0,
-        "pos_x": 550.0,
-        "pos_y": 120.0,
-    },
-    {
-        "node_id": "RELAY-VALLEY-04",
-        "name": "Valley Mobile Transceiver",
-        "node_type": "relay",
-        "status": NodeStatus.DEGRADED.value,
-        "battery_level": 45.0,
-        "pos_x": 320.0,
-        "pos_y": 280.0,
-    },
-    {
-        "node_id": "SHELTER-SOUTH-05",
-        "name": "Civic Center Evacuation Shelter",
-        "node_type": "shelter",
-        "status": NodeStatus.ACTIVE.value,
-        "battery_level": 78.0,
-        "pos_x": 560.0,
-        "pos_y": 320.0,
-    },
-]
+from app.services.seed_data import seed_database_idempotent
 
 
 def seed_default_nodes_if_empty(db: Session) -> List[NetworkNode]:
-    """Ensures a baseline set of nodes exists in the SQLite database."""
-    count = db.query(NetworkNode).count()
-    if count == 0:
-        created_nodes = []
-        for item in DEFAULT_NODES:
-            node = NetworkNode(**item)
-            db.add(node)
-            created_nodes.append(node)
-        db.commit()
-        for node in created_nodes:
-            db.refresh(node)
-        return created_nodes
+    """Ensures baseline data is idempotently seeded in SQLite."""
+    seed_database_idempotent(db)
     return db.query(NetworkNode).all()
 
 
@@ -84,7 +29,7 @@ class DeterministicNetworkRouter:
       - NORMAL_LOGISTICS / LOW_ROUTINE: Normal cost routing
     """
 
-    MAX_COMMUNICATION_RANGE = 350.0  # Euclidean distance threshold for direct link
+    MAX_COMMUNICATION_RANGE = 350.0
 
     @classmethod
     def calculate_distance(cls, n1: NetworkNode, n2: NetworkNode) -> float:
@@ -96,25 +41,25 @@ class DeterministicNetworkRouter:
         from_node: NetworkNode,
         to_node: NetworkNode,
         priority: str,
+        db_link: Optional[NetworkLink] = None,
     ) -> float:
         distance = cls.calculate_distance(from_node, to_node)
-        
-        # Base latency penalty proportional to distance (approx 1ms per 10 units)
         base_cost = distance / 10.0
 
-        # Battery penalty: nodes with low battery increase weight
+        if db_link is not None:
+            base_cost = (db_link.latency / 2.0) * db_link.link_cost
+
         battery_penalty = 1.0
         if to_node.battery_level < 20.0:
             battery_penalty = 3.0
         elif to_node.battery_level < 50.0:
             battery_penalty = 1.5
 
-        # Degraded status penalty
         status_penalty = 2.0 if to_node.status == NodeStatus.DEGRADED.value else 1.0
+        if db_link and db_link.operational_state == "DEGRADED":
+            status_penalty *= 1.8
 
-        # Priority modifier
         if priority == MessagePriority.CRITICAL_SOS.value:
-            # Critical messages bypass non-essential delays
             return base_cost * 0.8 * status_penalty
         elif priority == MessagePriority.HIGH_MEDICAL.value:
             return base_cost * battery_penalty * status_penalty
@@ -125,6 +70,7 @@ class DeterministicNetworkRouter:
     def find_optimal_path(
         cls,
         nodes: Dict[str, NetworkNode],
+        links: Dict[Tuple[str, str], NetworkLink],
         source_id: str,
         target_id: str,
         priority: str,
@@ -160,11 +106,16 @@ class DeterministicNetworkRouter:
                 if neighbor_node.status == NodeStatus.OFFLINE.value:
                     continue
 
-                dist_between = cls.calculate_distance(current_node, neighbor_node)
-                if dist_between > cls.MAX_COMMUNICATION_RANGE:
+                # Check if database link exists or if within communication range
+                db_link = links.get((current_node_id, neighbor_id)) or links.get((neighbor_id, current_node_id))
+                if db_link and db_link.operational_state == "DOWN":
                     continue
 
-                weight = cls.compute_priority_weight(current_node, neighbor_node, priority)
+                dist_between = cls.calculate_distance(current_node, neighbor_node)
+                if db_link is None and dist_between > cls.MAX_COMMUNICATION_RANGE:
+                    continue
+
+                weight = cls.compute_priority_weight(current_node, neighbor_node, priority, db_link)
                 candidate_dist = current_dist + weight
 
                 if candidate_dist < distances[neighbor_id]:
@@ -175,7 +126,6 @@ class DeterministicNetworkRouter:
         if distances[target_id] == float("inf"):
             return None, 0.0
 
-        # Reconstruct path
         path: List[str] = []
         curr: Optional[str] = target_id
         while curr is not None:
@@ -192,21 +142,37 @@ def run_deterministic_simulation(
 ) -> SimulationRunResponse:
     seed_default_nodes_if_empty(db)
     all_nodes = {node.node_id: node for node in db.query(NetworkNode).all()}
+    all_links = {
+        (link.source_node_id, link.destination_node_id): link
+        for link in db.query(NetworkLink).all()
+    }
 
     failed_set = list(set(request.simulate_node_failures or []))
+    simulation_id = f"SIM-{uuid.uuid4().hex[:8].upper()}"
+    msg_id = f"MSG-{uuid.uuid4().hex[:8].upper()}"
+
+    start_time = datetime.utcnow()
+
     path, total_latency = DeterministicNetworkRouter.find_optimal_path(
         nodes=all_nodes,
+        links=all_links,
         source_id=request.source_node_id,
         target_id=request.target_node_id,
         priority=request.priority,
         failed_node_ids=failed_set,
     )
 
-    simulation_id = f"SIM-{uuid.uuid4().hex[:8].upper()}"
-    msg_id = f"MSG-{uuid.uuid4().hex[:8].upper()}"
+    end_time = datetime.utcnow()
+    duration_sec = round((end_time - start_time).total_seconds(), 4)
+
+    initial_snapshot = {
+        "nodes_count": len(all_nodes),
+        "failed_nodes": failed_set,
+        "priority": request.priority,
+    }
 
     if not path or len(path) < 1:
-        # Save failed message record
+        # Save dropped message record
         msg = EmergencyMessage(
             message_id=msg_id,
             sender_id=request.source_node_id,
@@ -218,6 +184,32 @@ def run_deterministic_simulation(
             route_taken="",
         )
         db.add(msg)
+
+        # Log simulation run record
+        sim_run = SimulationRun(
+            run_id=simulation_id,
+            scenario_id=None,
+            start_time=start_time,
+            end_time=end_time,
+            initial_state=initial_snapshot,
+            final_state={"delivered": False, "hops": 0},
+            result="FAILED",
+            recovery_duration=duration_sec,
+            packet_statistics={"total": 1, "delivered": 0, "dropped": 1},
+        )
+        db.add(sim_run)
+
+        # Log network event
+        evt = NetworkEvent(
+            event_id=f"EVT-{uuid.uuid4().hex[:8].upper()}",
+            timestamp=datetime.utcnow(),
+            event_type="PACKET_DROPPED",
+            severity="CRITICAL",
+            message=f"Packet {msg_id} dropped: no viable route between {request.source_node_id} and {request.target_node_id}.",
+            affected_resource=request.target_node_id,
+            related_run=simulation_id,
+        )
+        db.add(evt)
         db.commit()
 
         return SimulationRunResponse(
@@ -241,8 +233,12 @@ def run_deterministic_simulation(
         v_id = path[step + 1]
         u_node = all_nodes[u_id]
         v_node = all_nodes[v_id]
+        db_link = all_links.get((u_id, v_id)) or all_links.get((v_id, u_id))
         hop_latency = round(
-            DeterministicNetworkRouter.compute_priority_weight(u_node, v_node, request.priority), 2
+            DeterministicNetworkRouter.compute_priority_weight(
+                u_node, v_node, request.priority, db_link
+            ),
+            2,
         )
         details.append(
             HopDetail(
@@ -268,6 +264,32 @@ def run_deterministic_simulation(
         delivered_at=datetime.utcnow(),
     )
     db.add(msg)
+
+    # Log simulation run record
+    sim_run = SimulationRun(
+        run_id=simulation_id,
+        scenario_id=None,
+        start_time=start_time,
+        end_time=end_time,
+        initial_state=initial_snapshot,
+        final_state={"delivered": True, "path": path, "latency_ms": total_latency},
+        result="SUCCESS",
+        recovery_duration=duration_sec,
+        packet_statistics={"total": 1, "delivered": 1, "dropped": 0, "avg_latency_ms": total_latency},
+    )
+    db.add(sim_run)
+
+    # Log network event
+    evt = NetworkEvent(
+        event_id=f"EVT-{uuid.uuid4().hex[:8].upper()}",
+        timestamp=datetime.utcnow(),
+        event_type="PACKET_DELIVERED",
+        severity="INFO",
+        message=f"Packet {msg_id} ({request.priority}) delivered via {len(path) - 1} hops ({route_str}).",
+        affected_resource=request.target_node_id,
+        related_run=simulation_id,
+    )
+    db.add(evt)
     db.commit()
 
     return SimulationRunResponse(

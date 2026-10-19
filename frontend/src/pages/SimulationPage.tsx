@@ -360,10 +360,10 @@ export const SimulationPage: React.FC = () => {
                       <td className="py-2.5 text-coastal-text truncate max-w-xs">{m.content}</td>
                       <td className="py-2.5">
                         <span
-                          className={`font-semibold text-[10px] px-2 py-0.5 rounded-full border ${
+                          className={`font-semibold text-[10px] px-2 py-0.5 rounded border ${
                             m.status === 'DELIVERED'
-                              ? 'bg-coastal-safe/25 text-coastal-safe-text border-coastal-safe'
-                              : 'bg-coastal-critical/20 text-coastal-critical-text border-coastal-critical'
+                              ? 'bg-coastal-safe/25 text-coastal-safe-text border-coastal-safe-border'
+                              : 'bg-coastal-critical/20 text-coastal-critical-text border-coastal-critical-border'
                           }`}
                         >
                           {m.status}
