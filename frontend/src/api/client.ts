@@ -1,5 +1,15 @@
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+const getApiBaseUrl = (): string => {
+  if (import.meta.env.VITE_API_BASE_URL) return import.meta.env.VITE_API_BASE_URL;
+  if (typeof window !== 'undefined') {
+    if (window.location.port === '5173') {
+      return 'http://127.0.0.1:8000';
+    }
+    return '';
+  }
+  return 'http://127.0.0.1:8000';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 export class ApiError extends Error {
   status: number;

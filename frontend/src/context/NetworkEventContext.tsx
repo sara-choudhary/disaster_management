@@ -65,6 +65,10 @@ export const NetworkEventProvider: React.FC<NetworkEventProviderProps> = ({
   // Construct WebSocket URL
   const getWebSocketUrl = useCallback((): string => {
     if (urlOverride) return urlOverride;
+    if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
+    if (typeof window !== 'undefined' && window.location.port === '5173') {
+      return 'ws://localhost:8000/ws/network-events';
+    }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host || 'localhost:8000';
     return `${protocol}//${host}/ws/network-events`;

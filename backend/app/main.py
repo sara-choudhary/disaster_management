@@ -1,8 +1,11 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
 import uuid
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import os
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.api.v1.api import api_router
 from app.api.v1.endpoints.health import router as health_router
@@ -49,8 +52,18 @@ app.include_router(health_router)
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
+# Resolve frontend static distribution directory
+frontend_dist = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../../frontend/dist")
+)
+
+
 @app.get("/", tags=["Root"])
-def root_info():
+def root_info(request: Request):
+    accept = request.headers.get("accept", "")
+    index_file = os.path.join(frontend_dist, "index.html")
+    if os.path.exists(index_file) and "text/html" in accept:
+        return FileResponse(index_file)
     return {
         "project": settings.PROJECT_NAME,
         "docs_url": "/docs",
@@ -92,3 +105,29 @@ async def websocket_network_events(websocket: WebSocket):
         manager.disconnect(websocket)
     except Exception:
         manager.disconnect(websocket)
+
+
+# Mount Static Frontend SPA (if built)
+if os.path.exists(frontend_dist):
+    assets_dir = os.path.join(frontend_dist, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        if (
+            full_path.startswith("api")
+            or full_path.startswith("ws")
+            or full_path in ["docs", "openapi.json", "redoc", "health"]
+        ):
+            raise HTTPException(status_code=404, detail="Not Found")
+
+        potential_file = os.path.join(frontend_dist, full_path)
+        if full_path and os.path.isfile(potential_file):
+            return FileResponse(potential_file)
+
+        index_file = os.path.join(frontend_dist, "index.html")
+        if os.path.isfile(index_file):
+            return FileResponse(index_file)
+        raise HTTPException(status_code=404, detail="Not Found")
+
