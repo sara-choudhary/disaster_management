@@ -7,6 +7,7 @@ import {
   ReachabilityMatrixResponse,
   NetworkEventItem,
   FailureInjectionResponse,
+  AlgorithmComparisonResponse,
 } from '../types';
 
 export async function fetchTopology(): Promise<NetworkTopology> {
@@ -75,5 +76,19 @@ export async function fetchReachability(sourceNodeId?: string): Promise<Reachabi
 export async function fetchEvents(limit: number = 20): Promise<NetworkEventItem[]> {
   return apiClient<NetworkEventItem[]>(`/api/v1/events?limit=${limit}`);
 }
+
+export async function compareRoutingAlgorithms(
+  source?: string,
+  destination?: string,
+  kPaths: number = 3,
+): Promise<AlgorithmComparisonResponse> {
+  const params = new URLSearchParams();
+  if (source) params.append('source', source);
+  if (destination) params.append('destination', destination);
+  params.append('k_paths', kPaths.toString());
+
+  return apiClient<AlgorithmComparisonResponse>(`/api/v1/network/routes/compare-algorithms?${params.toString()}`);
+}
+
 
 

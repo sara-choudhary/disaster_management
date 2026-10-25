@@ -77,3 +77,27 @@ class QoSSimulationResponse(BaseModel):
     simulated_estimate_notice: str
     qos_vs_routing_explanation: str
 
+
+class SchedulerComparisonItem(BaseModel):
+    policy_key: str
+    policy_name: str
+    description: str
+    starvation_observed: bool
+    starvation_safeguard_active: bool
+    critical_delivery_pct: float
+    normal_delivery_pct: float
+    low_delivery_pct: float
+    results_by_class: List[ClassQoSResult]
+
+
+class SchedulerComparisonResponse(BaseModel):
+    source_department: str
+    destination_department: str
+    bottleneck_link_id: str
+    bottleneck_capacity_mbps: float
+    total_offered_load_mbps: float
+    is_congested: bool
+    schedulers: List[SchedulerComparisonItem]
+    engineering_insights: str
+
+

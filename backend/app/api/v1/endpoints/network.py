@@ -19,6 +19,7 @@ from app.schemas.network import (
     NodeActionResponse,
     BaselineResetResponse,
     ReachabilityMatrixResponse,
+    AlgorithmComparisonResponse,
 )
 from app.schemas.telemetry import TelemetryResponse
 from app.services import network_service, telemetry_service
@@ -95,6 +96,25 @@ def calculate_network_route(
 def get_node_routing_table(node_id: str, db: Session = Depends(get_db)):
     """Retrieve full OSPF-style converged routing table for a given router or endpoint."""
     return network_service.get_routing_table(db, node_id)
+
+
+@router.get("/routes/compare-algorithms", response_model=AlgorithmComparisonResponse, tags=["Network"])
+def compare_routing_algorithms(
+    source: Optional[str] = Query("HQ-COMMAND-01", description="Source station ID or department alias"),
+    destination: Optional[str] = Query("HOSPITAL-TRIAGE-03", description="Destination station ID or department alias"),
+    k_paths: int = Query(3, ge=1, le=5, description="Number of ranked alternative loopless paths for Yen's algorithm"),
+    db: Session = Depends(get_db),
+):
+    """
+    Compare Dijkstra SPF, Bellman-Ford, Floyd-Warshall, and Yen's K-Shortest Loopless Paths
+    on the exact same network topology and link states.
+    """
+    return network_service.compare_routing_algorithms(
+        db=db,
+        source=source,
+        destination=destination,
+        k_paths=k_paths,
+    )
 
 
 

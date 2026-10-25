@@ -7,14 +7,18 @@ import {
   Sliders,
   Layers,
   Info,
+  GitCompare,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   QoSSimulationRequest,
   QoSSimulationResponse,
   TrafficClass,
+  SchedulerComparisonResponse,
 } from '../types';
 import {
   simulateTrafficQoS,
+  compareQoSSchedulers,
   fetchTrafficClasses,
   fetchDepartments,
   DepartmentItem,
@@ -40,6 +44,33 @@ export const TrafficPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [pageLoading, setPageLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Tab & Scheduler Comparison state
+  const [activeTab, setActiveTab] = useState<'single_drill' | 'compare_schedulers'>('single_drill');
+  const [schedulerComparison, setSchedulerComparison] = useState<SchedulerComparisonResponse | null>(null);
+  const [schedulerLoading, setSchedulerLoading] = useState<boolean>(false);
+
+  const handleCompareSchedulers = useCallback(async () => {
+    try {
+      setSchedulerLoading(true);
+      setError(null);
+      const payload: QoSSimulationRequest = {
+        source_department: sourceDept,
+        destination_department: destDept,
+        traffic_class: selectedClass,
+        packet_count: packetCount,
+        offered_load_mbps: offeredLoadMbps,
+        test_duration_sec: durationSec,
+        competing_traffic: competingTraffic,
+      };
+      const comp = await compareQoSSchedulers(payload);
+      setSchedulerComparison(comp);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to compare QoS schedulers');
+    } finally {
+      setSchedulerLoading(false);
+    }
+  }, [sourceDept, destDept, selectedClass, packetCount, offeredLoadMbps, durationSec, competingTraffic]);
 
   // Load initial departments & classes
   useEffect(() => {
@@ -137,12 +168,41 @@ export const TrafficPage: React.FC = () => {
         </div>
 
         <button
-          onClick={() => handleRunSimulation()}
-          disabled={loading}
+          onClick={() => (activeTab === 'single_drill' ? handleRunSimulation() : handleCompareSchedulers())}
+          disabled={loading || schedulerLoading}
           className="flex items-center gap-1.5 px-4 py-2 bg-coastal-cerulean hover:bg-coastal-cerulean/90 text-white rounded-xl text-xs font-semibold shadow-coastal-sm transition-all self-start sm:self-auto disabled:opacity-50"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Run Simulation</span>
+          <RefreshCw className={`w-3.5 h-3.5 ${loading || schedulerLoading ? 'animate-spin' : ''}`} />
+          <span>{activeTab === 'single_drill' ? 'Run Simulation' : 'Benchmark Schedulers'}</span>
+        </button>
+      </div>
+
+      {/* Mode Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-coastal-border pb-2 flex-wrap">
+        <button
+          onClick={() => setActiveTab('single_drill')}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            activeTab === 'single_drill'
+              ? 'bg-coastal-powder text-coastal-cerulean border border-coastal-border shadow-coastal-sm'
+              : 'text-coastal-text-muted hover:text-coastal-text'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5" /> QoS Traffic Simulator
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('compare_schedulers');
+            if (!schedulerComparison && !schedulerLoading) {
+              handleCompareSchedulers();
+            }
+          }}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            activeTab === 'compare_schedulers'
+              ? 'bg-coastal-powder text-coastal-cerulean border border-coastal-border shadow-coastal-sm'
+              : 'text-coastal-text-muted hover:text-coastal-text'
+          }`}
+        >
+          <GitCompare className="w-3.5 h-3.5" /> Compare QoS Schedulers & Starvation
         </button>
       </div>
 
@@ -167,8 +227,11 @@ export const TrafficPage: React.FC = () => {
         </div>
       )}
 
-      {/* ---------------- Simulation Controls Form (Rectangular, Clean) ---------------- */}
-      <div className="bg-coastal-cream border border-coastal-border rounded-2xl p-5 shadow-coastal-sm">
+      {/* ---------------- Single Policy Simulation View ---------------- */}
+      {activeTab === 'single_drill' && (
+        <>
+          {/* ---------------- Simulation Controls Form (Rectangular, Clean) ---------------- */}
+          <div className="bg-coastal-cream border border-coastal-border rounded-2xl p-5 shadow-coastal-sm">
         <div className="flex items-center justify-between border-b border-coastal-border pb-3 mb-4">
           <h2 className="text-xs font-bold uppercase tracking-wider text-coastal-text flex items-center gap-2">
             <Sliders className="w-4 h-4 text-coastal-cerulean" /> Simulation Parameters
@@ -653,6 +716,286 @@ export const TrafficPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+      </>
+      )}
+
+      {/* ---------------- Schedulers Comparison View ---------------- */}
+      {activeTab === 'compare_schedulers' && (
+        <div className="space-y-6">
+          {/* Schedulers Control Strip */}
+          <div className="bg-coastal-cream border border-coastal-border rounded-2xl p-5 shadow-coastal-sm">
+            <div className="flex items-center justify-between border-b border-coastal-border pb-3 mb-4">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-coastal-text flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-coastal-cerulean" /> Scheduler Benchmark Parameters
+              </h2>
+              <span className="text-[11px] text-coastal-text-muted">Test 4 Queue Schedulers under Identical Offered Load</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+              <div>
+                <label className="block text-[11px] font-bold text-coastal-text-muted uppercase mb-1">
+                  Source Department
+                </label>
+                <select
+                  value={sourceDept}
+                  onChange={(e) => setSourceDept(e.target.value)}
+                  className="w-full px-3 py-2 bg-coastal-cream-dark/60 border border-coastal-border rounded-xl text-xs font-semibold text-coastal-text focus:outline-none focus:ring-1 focus:ring-coastal-cerulean"
+                >
+                  {departments.map((d) => (
+                    <option key={d.name} value={d.name}>
+                      {d.name} ({d.subnet})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-coastal-text-muted uppercase mb-1">
+                  Destination Department
+                </label>
+                <select
+                  value={destDept}
+                  onChange={(e) => setDestDept(e.target.value)}
+                  className="w-full px-3 py-2 bg-coastal-cream-dark/60 border border-coastal-border rounded-xl text-xs font-semibold text-coastal-text focus:outline-none focus:ring-1 focus:ring-coastal-cerulean"
+                >
+                  {departments.map((d) => (
+                    <option key={d.name} value={d.name}>
+                      {d.name} ({d.subnet})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-bold text-coastal-text-muted uppercase">
+                    Total Offered Load
+                  </label>
+                  <span className="font-mono text-xs font-bold text-coastal-cerulean">
+                    {offeredLoadMbps} Mbps
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={20}
+                    max={200}
+                    step={10}
+                    value={offeredLoadMbps}
+                    onChange={(e) => setOfferedLoadMbps(parseFloat(e.target.value))}
+                    className="w-full accent-coastal-cerulean"
+                  />
+                  <button
+                    onClick={() => handleCompareSchedulers()}
+                    disabled={schedulerLoading}
+                    className="px-3.5 py-1.5 bg-coastal-cerulean hover:bg-coastal-cerulean-dark text-white rounded-xl text-xs font-semibold shadow-coastal-sm flex-shrink-0 disabled:opacity-50"
+                  >
+                    {schedulerLoading ? 'Evaluating...' : 'Benchmark'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Schedulers Comparison Result */}
+          {schedulerComparison && (
+            <div className="space-y-6">
+              {/* Bottleneck Summary Banner */}
+              <div className="p-4 bg-coastal-cream border border-coastal-border rounded-2xl shadow-coastal-sm flex flex-wrap items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-coastal-text-muted uppercase tracking-wider block">
+                    Bottleneck Link Evaluation
+                  </span>
+                  <div className="font-mono text-xs font-bold text-coastal-text">
+                    {schedulerComparison.source_department} ➔ {schedulerComparison.destination_department}
+                  </div>
+                  <div className="text-[11px] text-coastal-text-muted">
+                    Constraint Link: <span className="font-mono font-semibold text-coastal-cerulean">{schedulerComparison.bottleneck_link_id}</span> ({schedulerComparison.bottleneck_capacity_mbps} Mbps capacity)
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 text-center">
+                  <div className="p-2.5 bg-coastal-powder/60 border border-coastal-border rounded-xl min-w-[110px]">
+                    <span className="text-[10px] text-coastal-text-muted font-bold block uppercase">Offered Load</span>
+                    <span className="font-mono text-sm font-black text-coastal-text">
+                      {schedulerComparison.total_offered_load_mbps} Mbps
+                    </span>
+                  </div>
+                  <div className="p-2.5 bg-coastal-powder/60 border border-coastal-border rounded-xl min-w-[110px]">
+                    <span className="text-[10px] text-coastal-text-muted font-bold block uppercase">Link State</span>
+                    <span
+                      className={`text-xs font-bold uppercase ${
+                        schedulerComparison.is_congested ? 'text-coastal-critical-text' : 'text-coastal-safe-text'
+                      }`}
+                    >
+                      {schedulerComparison.is_congested ? 'CONGESTED' : 'UNCONGESTED'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4-Scheduler Overview Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {schedulerComparison.schedulers.map((sch) => (
+                  <div
+                    key={sch.policy_key}
+                    className="p-4 bg-coastal-cream border border-coastal-border rounded-2xl shadow-coastal-sm flex flex-col justify-between space-y-3"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-1 mb-1.5">
+                        <h3 className="font-bold text-xs text-coastal-text">{sch.policy_name}</h3>
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                            sch.starvation_observed
+                              ? 'bg-coastal-critical/20 text-coastal-critical-text border-coastal-critical-border'
+                              : 'bg-coastal-safe/25 text-coastal-safe-text border-coastal-safe-border'
+                          }`}
+                        >
+                          {sch.starvation_observed ? 'STARVATION OBSERVED' : 'NO STARVATION'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-coastal-text-muted leading-relaxed mb-3">
+                        {sch.description}
+                      </p>
+
+                      {/* Delivery Stats mini-grid */}
+                      <div className="space-y-1.5 text-xs border-t border-coastal-border/60 pt-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-coastal-text-muted">Critical SOS (P1):</span>
+                          <span className="font-mono font-bold text-coastal-safe-text">{sch.critical_delivery_pct}%</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-coastal-text-muted">Normal Dept (P3):</span>
+                          <span className={`font-mono font-bold ${sch.normal_delivery_pct < 50 ? 'text-coastal-warning-text' : 'text-coastal-text'}`}>
+                            {sch.normal_delivery_pct}%
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-coastal-text-muted">Low Background (P4):</span>
+                          <span className={`font-mono font-bold ${sch.low_delivery_pct === 0 ? 'text-coastal-critical-text' : 'text-coastal-text'}`}>
+                            {sch.low_delivery_pct}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-coastal-border/60 text-[10px]">
+                      {sch.starvation_safeguard_active ? (
+                        <span className="text-coastal-cerulean font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-coastal-cerulean" /> 8% Minimum Reservation Active
+                        </span>
+                      ) : sch.policy_key === 'strict_priority' ? (
+                        <span className="text-coastal-critical-text font-semibold flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3 text-coastal-critical" /> Starves lower queues under load
+                        </span>
+                      ) : (
+                        <span className="text-coastal-safe-text font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-coastal-safe-text" /> All queues make progress
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Detailed Comparative Table */}
+              <div className="bg-coastal-cream border border-coastal-border rounded-2xl p-5 shadow-coastal-sm">
+                <div className="border-b border-coastal-border pb-3 mb-4">
+                  <h3 className="text-sm font-bold text-coastal-text flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-coastal-cerulean" /> Cross-Scheduler Class Allocation Breakdown
+                  </h3>
+                  <p className="text-xs text-coastal-text-muted mt-0.5">
+                    Direct comparison of bandwidth distribution, queue delay, and delivery reliability across all 4 scheduling disciplines.
+                  </p>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-coastal-border text-[10px] font-bold text-coastal-text-muted uppercase">
+                        <th className="pb-2.5">Scheduler Discipline</th>
+                        <th className="pb-2.5">Traffic Class</th>
+                        <th className="pb-2.5 text-right">Offered Rate</th>
+                        <th className="pb-2.5 text-right">Allocated BW</th>
+                        <th className="pb-2.5 text-right">Queue Delay</th>
+                        <th className="pb-2.5 text-right">Delivery Ratio</th>
+                        <th className="pb-2.5 text-center">Starvation State</th>
+                        <th className="pb-2.5 text-center">SLA Compliance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-coastal-border/60">
+                      {schedulerComparison.schedulers.flatMap((sch) =>
+                        sch.results_by_class.map((r, idx) => (
+                          <tr key={`${sch.policy_key}-${r.traffic_class}`} className="hover:bg-coastal-powder/20">
+                            {idx === 0 ? (
+                              <td
+                                rowSpan={sch.results_by_class.length}
+                                className="py-2.5 font-bold text-coastal-text align-top border-r border-coastal-border/60 pr-3"
+                              >
+                                <div>{sch.policy_name}</div>
+                                <div className="text-[10px] text-coastal-text-muted font-normal mt-0.5">
+                                  {sch.starvation_observed ? 'Starvation observed' : 'Non-starving'}
+                                </div>
+                              </td>
+                            ) : null}
+                            <td className="py-2.5 font-mono font-semibold text-coastal-text">
+                              {r.traffic_class} (P{r.priority})
+                            </td>
+                            <td className="py-2.5 font-mono text-right text-coastal-text">
+                              {r.offered_rate_mbps} Mbps
+                            </td>
+                            <td className="py-2.5 font-mono font-bold text-right text-coastal-cerulean">
+                              {r.allocated_bandwidth_mbps} Mbps
+                            </td>
+                            <td className="py-2.5 font-mono text-right text-coastal-text">
+                              {r.queue_delay_ms} ms
+                            </td>
+                            <td className="py-2.5 font-mono font-bold text-right text-coastal-text">
+                              {r.delivery_ratio_pct}%
+                            </td>
+                            <td className="py-2.5 text-center">
+                              {r.starved ? (
+                                <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-coastal-critical/20 text-coastal-critical-text border border-coastal-critical-border">
+                                  STARVED
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-coastal-safe/25 text-coastal-safe-text border border-coastal-safe-border">
+                                  SERVICED
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 text-center">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                                  r.qos_compliance
+                                    ? 'bg-coastal-safe/25 text-coastal-safe-text border-coastal-safe-border'
+                                    : 'bg-coastal-warning/25 text-coastal-warning-text border-coastal-warning-border'
+                                }`}
+                              >
+                                {r.qos_compliance ? 'COMPLIANT' : 'VIOLATION'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Backend Engineering Insights */}
+              <div className="p-4 bg-coastal-powder/60 border border-coastal-border rounded-2xl text-xs text-coastal-text space-y-1.5 shadow-coastal-sm">
+                <div className="font-bold flex items-center gap-1.5 text-coastal-cerulean">
+                  <Info className="w-4 h-4" /> Disaster Network Traffic Engineering Insights
+                </div>
+                <div className="text-[11px] text-coastal-text-muted leading-relaxed">
+                  {schedulerComparison.engineering_insights}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -3,6 +3,7 @@ import {
   QoSSimulationRequest,
   QoSSimulationResponse,
   TrafficClass,
+  SchedulerComparisonResponse,
 } from '../types';
 
 export interface DepartmentItem {
@@ -43,3 +44,13 @@ export async function fetchQoSArchitecture(): Promise<{
 }> {
   return apiClient('/api/v1/traffic/architecture');
 }
+
+export async function compareQoSSchedulers(
+  payload: QoSSimulationRequest,
+): Promise<SchedulerComparisonResponse> {
+  return apiClient<SchedulerComparisonResponse>('/api/v1/traffic/compare-schedulers', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+

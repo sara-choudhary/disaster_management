@@ -303,6 +303,35 @@ def get_routing_table(db: Session, node_id: str) -> Dict[str, Any]:
     }
 
 
+def compare_routing_algorithms(
+    db: Session,
+    source: Optional[str] = "HQ-COMMAND-01",
+    destination: Optional[str] = "HOSPITAL-TRIAGE-03",
+    k_paths: int = 3,
+) -> Dict[str, Any]:
+    """Execute and compare Dijkstra, Bellman-Ford, Floyd-Warshall, and Yen's K-Shortest."""
+    seed_database_idempotent(db)
+    nodes_dict = {n.node_id: n for n in db.query(NetworkNode).all()}
+
+    resolved_src = resolve_node_id(nodes_dict, source or "HQ-COMMAND-01")
+    resolved_dest = resolve_node_id(nodes_dict, destination or "HOSPITAL-TRIAGE-03")
+
+    if not resolved_src:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Source node '{source}' not found",
+        )
+    if not resolved_dest:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Destination node '{destination}' not found",
+        )
+
+    engine = build_routing_engine(db)
+    return engine.compare_algorithms(resolved_src, resolved_dest, K=max(1, min(5, k_paths)))
+
+
+
 
 
 def compute_modeled_recovery_metrics(

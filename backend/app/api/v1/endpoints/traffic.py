@@ -10,6 +10,7 @@ from app.schemas.traffic_class import (
     QoSSimulationRequest,
     QoSSimulationResponse,
     TrafficClassResponse,
+    SchedulerComparisonResponse,
 )
 from app.services import qos_service
 from app.services.seed_data import seed_database_idempotent
@@ -55,6 +56,25 @@ async def run_traffic_qos_simulation(
         "bottleneck_link_id": result.bottleneck_link_id,
     })
     return result
+
+
+@router.post(
+    "/compare-schedulers",
+    response_model=SchedulerComparisonResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["Traffic & QoS"],
+)
+def compare_traffic_schedulers(
+    payload: QoSSimulationRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Compare Strict Priority, Strict Priority with Safeguard (SP-SS),
+    Weighted Fair Queueing (WFQ), and Round Robin (RR) under the exact same offered load.
+    Demonstrates lower-class starvation under Strict Priority and fairness/guarantees under WFQ.
+    """
+    return qos_service.compare_qos_schedulers(db=db, request=payload)
+
 
 
 @router.get(

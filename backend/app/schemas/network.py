@@ -117,3 +117,42 @@ class ReachabilityMatrixResponse(BaseModel):
     reachability_percentage: float
     destinations: Dict[str, Dict[str, Any]]
 
+
+class AlternativeRouteItem(BaseModel):
+    rank: int
+    path: List[str]
+    total_cost: float
+    hop_count: int
+    role: str
+    valid_after_failure: bool = True
+
+
+class AlgorithmComparisonItem(BaseModel):
+    algorithm_key: str
+    algorithm_name: str
+    path: List[str]
+    total_cost: Optional[float] = None
+    hop_count: int = 0
+    reachable: bool = False
+    execution_time_ms: float = 0.0
+    time_complexity: str
+    space_complexity: str
+    purpose: str
+    assumptions: str
+    scalability_warning: Optional[str] = None
+    is_optimal: bool = True
+    ranked_alternatives: Optional[List[AlternativeRouteItem]] = None
+
+
+class AlgorithmComparisonResponse(BaseModel):
+    source: str
+    destination: str
+    active_nodes_count: int
+    active_links_count: int
+    k_paths_requested: int = 3
+    algorithms: List[AlgorithmComparisonItem]
+    all_pairs_matrix_summary: Optional[Dict[str, Any]] = None
+    educational_notes: str
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+

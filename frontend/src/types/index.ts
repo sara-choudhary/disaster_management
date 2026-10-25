@@ -641,3 +641,75 @@ export interface TelemetryResponse {
   disclaimer: string;
 }
 
+export interface AlternativeRouteItem {
+  rank: number;
+  path: string[];
+  total_cost: number;
+  hop_count: number;
+  role: string;
+  valid_after_failure: boolean;
+}
+
+export interface AlgorithmComparisonItem {
+  algorithm_key: string;
+  algorithm_name: string;
+  path: string[];
+  total_cost: number | null;
+  hop_count: number;
+  reachable: boolean;
+  execution_time_ms: number;
+  time_complexity: string;
+  space_complexity: string;
+  purpose: string;
+  assumptions: string;
+  scalability_warning?: string | null;
+  is_optimal: boolean;
+  ranked_alternatives?: AlternativeRouteItem[] | null;
+}
+
+export interface AlgorithmComparisonResponse {
+  source: string;
+  destination: string;
+  active_nodes_count: number;
+  active_links_count: number;
+  k_paths_requested: number;
+  algorithms: AlgorithmComparisonItem[];
+  all_pairs_matrix_summary?: Record<string, any> | null;
+  educational_notes: string;
+  timestamp: string;
+}
+
+export interface SchedulerComparisonItem {
+  policy_key: string;
+  policy_name: string;
+  description: string;
+  starvation_observed: boolean;
+  starvation_safeguard_active: boolean;
+  critical_delivery_pct: number;
+  normal_delivery_pct: number;
+  low_delivery_pct: number;
+  results_by_class: Array<{
+    traffic_class: string;
+    priority: number;
+    offered_rate_mbps: number;
+    allocated_bandwidth_mbps: number;
+    queue_delay_ms: number;
+    loss_ratio_pct: number;
+    delivery_ratio_pct: number;
+    starved: boolean;
+    qos_compliance: boolean;
+  }>;
+}
+
+export interface SchedulerComparisonResponse {
+  source_department: string;
+  destination_department: string;
+  bottleneck_link_id: string;
+  bottleneck_capacity_mbps: number;
+  total_offered_load_mbps: number;
+  is_congested: boolean;
+  schedulers: SchedulerComparisonItem[];
+  engineering_insights: string;
+}
+
+

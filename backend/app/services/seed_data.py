@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import List, Dict, Any
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.department import Department
@@ -923,11 +924,40 @@ def validate_ip_addressing_plan() -> Dict[str, Any]:
     return results
 
 
+def ensure_schema_compatibility(db: Session):
+    """
+    Ensure SQLite schema compatibility by verifying required columns exist.
+    Safely adds missing columns (e.g. device_id) to avoid OperationalError
+    when running against older database states.
+    """
+    try:
+        # Check network_nodes table columns
+        cols_query = db.execute(text("PRAGMA table_info(network_nodes)")).fetchall()
+        col_names = {row[1] for row in cols_query}
+        if col_names:  # table exists
+            if "device_id" not in col_names:
+                db.execute(text("ALTER TABLE network_nodes ADD COLUMN device_id VARCHAR(50)"))
+                db.execute(text("UPDATE network_nodes SET device_id = node_id WHERE device_id IS NULL"))
+                db.commit()
+            if "department" not in col_names:
+                db.execute(text("ALTER TABLE network_nodes ADD COLUMN department VARCHAR(100) NOT NULL DEFAULT 'Emergency Services'"))
+                db.commit()
+            if "ip_address" not in col_names:
+                db.execute(text("ALTER TABLE network_nodes ADD COLUMN ip_address VARCHAR(50) NOT NULL DEFAULT '10.10.1.10'"))
+                db.commit()
+            if "extra_metadata" not in col_names:
+                db.execute(text("ALTER TABLE network_nodes ADD COLUMN extra_metadata JSON NOT NULL DEFAULT '{}'"))
+                db.commit()
+    except Exception:
+        db.rollback()
+
+
 def seed_database_idempotent(db: Session):
     """
     Idempotently seeds all baseline entities into SQLite.
     Checks existing records by unique IDs to avoid duplication or erasing history.
     """
+    ensure_schema_compatibility(db)
     # 1. Departments
     for dept_data in DEFAULT_DEPARTMENTS:
         exists = db.query(Department).filter(Department.code == dept_data["code"]).first()

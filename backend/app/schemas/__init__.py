@@ -28,6 +28,9 @@ from app.schemas.network import (
     FailureReasonPayload,
     LinkActionResponse,
     NodeActionResponse,
+    AlternativeRouteItem,
+    AlgorithmComparisonItem,
+    AlgorithmComparisonResponse,
 )
 from app.schemas.report import SummaryReportResponse, SimulationRunReportResponse
 from app.schemas.telemetry import (

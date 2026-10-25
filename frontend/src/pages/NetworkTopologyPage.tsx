@@ -34,6 +34,8 @@ import {
   ListChecks,
   History,
   Check,
+  GitCompare,
+  Route,
 } from 'lucide-react';
 import {
   NetworkNode,
@@ -43,6 +45,7 @@ import {
   BaselineResetResponse,
   ReachabilityMatrixResponse,
   NetworkEventItem,
+  AlgorithmComparisonResponse,
 } from '../types';
 import {
   fetchTopology,
@@ -53,6 +56,7 @@ import {
   resetBaseline,
   fetchReachability,
   fetchEvents,
+  compareRoutingAlgorithms,
 } from '../api/network';
 import { coastalColors } from '../theme/tokens';
 import { useNetworkEvents } from '../context/NetworkEventContext';
@@ -173,12 +177,38 @@ const TopologyFlowContent: React.FC = () => {
   const [selectedLink, setSelectedLink] = useState<NetworkLink | null>(null);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
 
-  // Prompt 8 Workflow States
+  // Prompt 8 & Algorithm Comparison Workflow States
   const [lastActionResult, setLastActionResult] = useState<FailureInjectionResponse | null>(null);
   const [baselineResetResult, setBaselineResetResult] = useState<BaselineResetResponse | null>(null);
   const [reachabilityData, setReachabilityData] = useState<ReachabilityMatrixResponse | null>(null);
   const [recentEvents, setRecentEvents] = useState<NetworkEventItem[]>([]);
-  const [activeBottomTab, setActiveBottomTab] = useState<'recovery' | 'reachability' | 'outages' | 'events'>('recovery');
+  const [activeBottomTab, setActiveBottomTab] = useState<'recovery' | 'reachability' | 'outages' | 'events' | 'algorithms'>('recovery');
+
+  // Algorithm comparison states
+  const [algoSource, setAlgoSource] = useState<string>('HQ-COMMAND-01');
+  const [algoDestination, setAlgoDestination] = useState<string>('HOSPITAL-TRIAGE-03');
+  const [algoKPaths, setAlgoKPaths] = useState<number>(3);
+  const [algoComparisonResult, setAlgoComparisonResult] = useState<AlgorithmComparisonResponse | null>(null);
+  const [algoLoading, setAlgoLoading] = useState<boolean>(false);
+  const [highlightedPath, setHighlightedPath] = useState<string[]>([]);
+
+  const handleRunAlgorithmComparison = async (src?: string, dst?: string, k?: number) => {
+    try {
+      setAlgoLoading(true);
+      const s = src || algoSource;
+      const d = dst || algoDestination;
+      const kp = k !== undefined ? k : algoKPaths;
+      const res = await compareRoutingAlgorithms(s, d, kp);
+      setAlgoComparisonResult(res);
+      if (res.algorithms && res.algorithms.length > 0 && res.algorithms[0].path.length > 0) {
+        setHighlightedPath(res.algorithms[0].path);
+      }
+    } catch (err) {
+      console.error('Failed to compare routing algorithms:', err);
+    } finally {
+      setAlgoLoading(false);
+    }
+  };
 
   // Confirmation Modal state
   const [modalConfig, setModalConfig] = useState<{
@@ -273,6 +303,7 @@ const TopologyFlowContent: React.FC = () => {
       const isOffline = node.status === 'offline';
       const isDegraded = node.status === 'degraded';
       const isSelected = selectedNode?.node_id === node.node_id;
+      const isHighlightedInPath = highlightedPath.includes(node.node_id);
 
       let borderClass = 'border-coastal-border';
       let statusColor: string = coastalColors.safe;
@@ -290,6 +321,8 @@ const TopologyFlowContent: React.FC = () => {
 
       if (isSelected) {
         borderClass = 'border-coastal-cerulean ring-2 ring-coastal-cerulean/30';
+      } else if (isHighlightedInPath) {
+        borderClass = 'border-coastal-dusty-rose ring-2 ring-coastal-dusty-rose/50';
       }
 
       return {
@@ -342,7 +375,7 @@ const TopologyFlowContent: React.FC = () => {
         },
       };
     });
-  }, [topology, selectedNode]);
+  }, [topology, selectedNode, highlightedPath]);
 
   // Convert API links to ReactFlow edges
   const flowEdges: Edge[] = useMemo(() => {
@@ -353,9 +386,27 @@ const TopologyFlowContent: React.FC = () => {
         link.link_type === 'secondary' || Boolean(link.extra_metadata?.is_secondary);
       const isSelected = selectedLink?.link_id === link.link_id;
 
+      // Check if this link is part of the highlightedPath
+      let isPathSegment = false;
+      if (highlightedPath.length >= 2) {
+        for (let i = 0; i < highlightedPath.length - 1; i++) {
+          const a = highlightedPath[i];
+          const b = highlightedPath[i + 1];
+          if (
+            (link.source_node_id === a && link.destination_node_id === b) ||
+            (link.source_node_id === b && link.destination_node_id === a)
+          ) {
+            isPathSegment = true;
+            break;
+          }
+        }
+      }
+
       let strokeColor: string = coastalColors.mutedCerulean;
       if (isDown) {
         strokeColor = coastalColors.critical;
+      } else if (isPathSegment) {
+        strokeColor = '#9E4A59'; // Coastal Dusty Rose
       } else if (isSecondary) {
         strokeColor = coastalColors.mutedMauve;
       } else if (link.operational_state === 'UP' && link.link_type === 'backbone') {
@@ -366,14 +417,14 @@ const TopologyFlowContent: React.FC = () => {
         id: link.link_id,
         source: link.source_node_id,
         target: link.destination_node_id,
-        animated: !isDown,
+        animated: isPathSegment ? true : !isDown,
         label: isSelected ? `${link.link_id} (${link.latency}ms)` : undefined,
         labelStyle: { fill: coastalColors.mainText, fontSize: 10, fontWeight: 600 },
         labelBgStyle: { fill: coastalColors.cream, stroke: strokeColor, strokeWidth: 1 },
 
         style: {
           stroke: strokeColor,
-          strokeWidth: isSelected ? 3.5 : isSecondary ? 2 : 2.5,
+          strokeWidth: isPathSegment ? 4 : isSelected ? 3.5 : isSecondary ? 2 : 2.5,
           strokeDasharray: isDown ? '6 6' : isSecondary ? '4 4' : undefined,
           cursor: 'pointer',
         },
@@ -386,7 +437,7 @@ const TopologyFlowContent: React.FC = () => {
         data: { raw: link },
       };
     });
-  }, [topology, selectedLink]);
+  }, [topology, selectedLink, highlightedPath]);
 
   const [activeFlowNodes, setActiveFlowNodes] = useState<Node[]>(flowNodes);
   useEffect(() => {
@@ -906,6 +957,21 @@ const TopologyFlowContent: React.FC = () => {
             >
               <History className="w-3.5 h-3.5" /> Telemetry Event History
             </button>
+            <button
+              onClick={() => {
+                setActiveBottomTab('algorithms');
+                if (!algoComparisonResult && !algoLoading) {
+                  handleRunAlgorithmComparison();
+                }
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeBottomTab === 'algorithms'
+                  ? 'bg-coastal-powder text-coastal-cerulean border border-coastal-border shadow-coastal-sm'
+                  : 'text-coastal-text-muted hover:text-coastal-text'
+              }`}
+            >
+              <GitCompare className="w-3.5 h-3.5" /> Multi-Algorithm Routing Comparison
+            </button>
           </div>
 
           {reachabilityData && (
@@ -1215,6 +1281,271 @@ const TopologyFlowContent: React.FC = () => {
             ) : (
               <div className="text-center py-6 text-xs text-coastal-text-muted">
                 No recent telemetry events logged yet.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 5: Multi-Algorithm Routing Comparison */}
+        {activeBottomTab === 'algorithms' && (
+          <div className="space-y-4">
+            {/* Control Strip */}
+            <div className="p-3.5 bg-coastal-cream-dark/40 border border-coastal-border rounded-xl flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center flex-wrap gap-2.5">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-coastal-text">
+                  <span className="text-coastal-text-muted">Source:</span>
+                  <select
+                    value={algoSource}
+                    onChange={(e) => setAlgoSource(e.target.value)}
+                    className="px-2 py-1 bg-coastal-cream border border-coastal-border rounded-lg text-xs font-mono text-coastal-text focus:outline-none focus:ring-1 focus:ring-coastal-cerulean"
+                  >
+                    {topology?.nodes.map((n) => (
+                      <option key={n.node_id} value={n.node_id}>
+                        {n.node_id} ({n.name})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <ArrowRight className="w-3.5 h-3.5 text-coastal-text-muted" />
+
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-coastal-text">
+                  <span className="text-coastal-text-muted">Destination:</span>
+                  <select
+                    value={algoDestination}
+                    onChange={(e) => setAlgoDestination(e.target.value)}
+                    className="px-2 py-1 bg-coastal-cream border border-coastal-border rounded-lg text-xs font-mono text-coastal-text focus:outline-none focus:ring-1 focus:ring-coastal-cerulean"
+                  >
+                    {topology?.nodes.map((n) => (
+                      <option key={n.node_id} value={n.node_id}>
+                        {n.node_id} ({n.name})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-coastal-text ml-1">
+                  <span className="text-coastal-text-muted">Yen's K-Paths:</span>
+                  <select
+                    value={algoKPaths}
+                    onChange={(e) => setAlgoKPaths(Number(e.target.value))}
+                    className="px-2 py-1 bg-coastal-cream border border-coastal-border rounded-lg text-xs font-mono text-coastal-text focus:outline-none focus:ring-1 focus:ring-coastal-cerulean"
+                  >
+                    <option value={2}>2 Alternatives</option>
+                    <option value={3}>3 Alternatives</option>
+                    <option value={4}>4 Alternatives</option>
+                    <option value={5}>5 Alternatives</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {highlightedPath.length > 0 && (
+                  <button
+                    onClick={() => setHighlightedPath([])}
+                    className="px-2.5 py-1 text-xs font-semibold text-coastal-text-muted hover:text-coastal-text border border-coastal-border rounded-lg bg-coastal-cream"
+                  >
+                    Clear Canvas Highlight
+                  </button>
+                )}
+                <button
+                  onClick={() => handleRunAlgorithmComparison()}
+                  disabled={algoLoading}
+                  className="px-3.5 py-1.5 bg-coastal-cerulean hover:bg-coastal-cerulean-dark border border-coastal-cerulean rounded-lg text-xs font-semibold text-white flex items-center gap-1.5 shadow-coastal-sm disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${algoLoading ? 'animate-spin' : ''}`} />
+                  {algoLoading ? 'Calculating...' : 'Benchmark All 4 Algorithms'}
+                </button>
+              </div>
+            </div>
+
+            {/* Algorithm Comparison Grid */}
+            {algoComparisonResult ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                  {algoComparisonResult.algorithms.map((algo) => {
+                    const isHighlighted =
+                      highlightedPath.length > 0 &&
+                      JSON.stringify(highlightedPath) === JSON.stringify(algo.path);
+
+                    return (
+                      <div
+                        key={algo.algorithm_key}
+                        className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between shadow-coastal-sm ${
+                          isHighlighted
+                            ? 'bg-coastal-powder/60 border-coastal-dusty-rose ring-1 ring-coastal-dusty-rose'
+                            : 'bg-coastal-cream border-coastal-border'
+                        }`}
+                      >
+                        <div className="space-y-2.5">
+                          <div className="flex items-start justify-between gap-1">
+                            <div>
+                              <div className="font-bold text-xs text-coastal-text flex items-center gap-1">
+                                <span>{algo.algorithm_name}</span>
+                              </div>
+                              <div className="text-[10px] text-coastal-text-muted font-medium">
+                                {algo.purpose}
+                              </div>
+                            </div>
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                                algo.reachable
+                                  ? 'bg-coastal-safe/25 text-coastal-safe-text border-coastal-safe-border'
+                                  : 'bg-coastal-critical/20 text-coastal-critical-text border-coastal-critical-border'
+                              }`}
+                            >
+                              {algo.reachable ? 'REACHABLE' : 'UNREACHABLE'}
+                            </span>
+                          </div>
+
+                          {/* Metric stats */}
+                          <div className="grid grid-cols-3 gap-1.5 py-1.5 border-y border-coastal-border/60 text-center">
+                            <div>
+                              <span className="text-[9px] text-coastal-text-muted block font-semibold uppercase">Cost</span>
+                              <span className="font-mono text-xs font-bold text-coastal-text">
+                                {algo.total_cost !== null ? algo.total_cost : 'N/A'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] text-coastal-text-muted block font-semibold uppercase">Hops</span>
+                              <span className="font-mono text-xs font-bold text-coastal-text">{algo.hop_count}</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] text-coastal-text-muted block font-semibold uppercase">Compute</span>
+                              <span className="font-mono text-xs font-bold text-coastal-cerulean">
+                                {algo.execution_time_ms < 0.1
+                                  ? `${(algo.execution_time_ms * 1000).toFixed(0)}µs`
+                                  : `${algo.execution_time_ms.toFixed(2)}ms`}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Path sequence */}
+                          <div>
+                            <span className="text-[10px] text-coastal-text-muted font-semibold block mb-1">
+                              Computed Path:
+                            </span>
+                            {algo.path && algo.path.length > 0 ? (
+                              <div className="flex items-center gap-1 flex-wrap font-mono text-[11px] text-coastal-text bg-coastal-powder/40 p-1.5 rounded-lg border border-coastal-border">
+                                {algo.path.map((hop, idx) => (
+                                  <React.Fragment key={hop}>
+                                    <span className="font-semibold">{hop}</span>
+                                    {idx < algo.path.length - 1 && (
+                                      <ArrowRight className="w-2.5 h-2.5 text-coastal-cerulean flex-shrink-0" />
+                                    )}
+                                  </React.Fragment>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-[11px] text-coastal-critical-text italic">No path available</div>
+                            )}
+                          </div>
+
+                          {/* Complexity info */}
+                          <div className="text-[10px] space-y-0.5 pt-1 text-coastal-text-muted">
+                            <div>
+                              <span className="font-semibold">Time:</span>{' '}
+                              <span className="font-mono">{algo.time_complexity}</span>
+                            </div>
+                            <div>
+                              <span className="font-semibold">Space:</span>{' '}
+                              <span className="font-mono">{algo.space_complexity}</span>
+                            </div>
+                            {algo.scalability_warning && (
+                              <div className="text-[10px] text-coastal-warning-text bg-coastal-warning/15 p-1 rounded border border-coastal-warning-border mt-1">
+                                {algo.scalability_warning}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Action highlight */}
+                        <div className="pt-3">
+                          {algo.path && algo.path.length > 0 && (
+                            <button
+                              onClick={() => setHighlightedPath(algo.path)}
+                              className={`w-full py-1.5 px-2 text-[11px] font-semibold rounded-lg border transition-all flex items-center justify-center gap-1 ${
+                                isHighlighted
+                                  ? 'bg-coastal-dusty-rose text-white border-coastal-dusty-rose'
+                                  : 'bg-coastal-cream hover:bg-coastal-powder border-coastal-border text-coastal-text'
+                              }`}
+                            >
+                              <Route className="w-3 h-3" />
+                              {isHighlighted ? 'Highlighted on Canvas' : 'Highlight Path on Canvas'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Yen's Alternative Backup Routes Subpanel */}
+                {algoComparisonResult.algorithms.find((a) => a.algorithm_key === 'yen_k_shortest')?.ranked_alternatives && (
+                  <div className="p-3.5 bg-coastal-cream rounded-xl border border-coastal-border shadow-coastal-sm space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-coastal-text flex items-center gap-1.5">
+                        <Route className="w-3.5 h-3.5 text-coastal-cerulean" /> Yen's Loopless Backup Routes (Disaster Resilience)
+                      </span>
+                      <span className="text-[11px] text-coastal-text-muted">
+                        Computed {algoComparisonResult.algorithms.find((a) => a.algorithm_key === 'yen_k_shortest')?.ranked_alternatives?.length} loopless alternatives
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                      {algoComparisonResult.algorithms
+                        .find((a) => a.algorithm_key === 'yen_k_shortest')
+                        ?.ranked_alternatives?.map((alt) => {
+                          const isAltHighlighted =
+                            highlightedPath.length > 0 &&
+                            JSON.stringify(highlightedPath) === JSON.stringify(alt.path);
+
+                          return (
+                            <div
+                              key={alt.rank}
+                              className={`p-2.5 rounded-lg border text-xs space-y-1.5 ${
+                                isAltHighlighted
+                                  ? 'bg-coastal-powder border-coastal-dusty-rose'
+                                  : 'bg-coastal-cream-dark/30 border-coastal-border'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="font-bold text-coastal-text">{alt.role}</span>
+                                <span className="font-mono text-coastal-text-muted">Cost: {alt.total_cost} | {alt.hop_count} hops</span>
+                              </div>
+                              <div className="font-mono text-[10px] text-coastal-text truncate">
+                                {alt.path.join(' → ')}
+                              </div>
+                              <button
+                                onClick={() => setHighlightedPath(alt.path)}
+                                className="w-full py-1 text-[10px] font-semibold bg-coastal-cream hover:bg-coastal-powder border border-coastal-border rounded text-coastal-text"
+                              >
+                                {isAltHighlighted ? 'Active Canvas Path' : 'Highlight Alternative'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Educational Notes Banner */}
+                <div className="p-3 bg-coastal-powder/60 border border-coastal-border rounded-xl text-xs text-coastal-text space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-coastal-cerulean">
+                    <Info className="w-3.5 h-3.5" /> Algorithmic Trade-offs in Disaster Communication
+                  </div>
+                  <div className="text-[11px] text-coastal-text-muted leading-relaxed">
+                    {algoComparisonResult.educational_notes}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-10 bg-coastal-cream rounded-xl border border-coastal-border text-xs text-coastal-text-muted">
+                <GitCompare className="w-8 h-8 text-coastal-cerulean/50 mx-auto mb-2" />
+                <p className="font-semibold text-coastal-text">Compare Alternative Shortest Path & Backup Routing Algorithms</p>
+                <p className="mt-1 max-w-md mx-auto">
+                  Click "Benchmark All 4 Algorithms" to simultaneously evaluate Dijkstra SPF, Bellman-Ford, Floyd-Warshall, and Yen's K-Shortest Loopless Paths on the active network topology.
+                </p>
               </div>
             )}
           </div>

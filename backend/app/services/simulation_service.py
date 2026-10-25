@@ -29,6 +29,8 @@ from app.services.seed_data import seed_database_idempotent
 from app.services.simulation import DeterministicNetworkRouter
 from app.services.network_service import get_metrics, resolve_node_id
 from app.services.telemetry_service import seed_baseline_simulation_runs_if_empty
+from app.services.packet_simulation import simulate_discrete_packet_flow
+
 
 
 
@@ -117,30 +119,74 @@ def create_simulation_run(
         duration_sec = 0.045  # nominal simulation calculation duration
 
     packet_count = request.packet_count or 10
-    success = path is not None and len(path) > 0
+
+    # Execute discrete packet lifecycle simulation
+    all_down_links = [l.link_id for l in db.query(NetworkLink).filter(NetworkLink.operational_state == "DOWN").all()]
+    all_links_dict = {l.link_id: l for l in db.query(NetworkLink).all()}
+
+    packet_sim = simulate_discrete_packet_flow(
+        source_id=src,
+        target_id=dest,
+        priority=priority,
+        packet_count=packet_count,
+        payload_size_bytes=1024,
+        nodes_dict=nodes_dict,
+        links_dict=all_links_dict,
+        failed_nodes=resolved_failed,
+        failed_links=all_down_links,
+    )
+
+    success = packet_sim.delivered_count > 0 and len(packet_sim.actual_path) > 0
 
     if success:
         packet_stats = {
-            "total_packets": packet_count,
-            "delivered": packet_count,
-            "dropped": 0,
-            "delivery_rate_pct": 100.0,
-            "avg_latency_ms": latency,
-            "path": path,
-            "hops": len(path) - 1,
+            "total_packets": packet_sim.total_packets_generated,
+            "delivered": packet_sim.delivered_count,
+            "dropped": packet_sim.dropped_count,
+            "buffered": packet_sim.buffered_count,
+            "retransmissions": packet_sim.retransmitted_count,
+            "delivery_rate_pct": packet_sim.delivery_ratio_pct,
+            "loss_ratio_pct": packet_sim.loss_ratio_pct,
+            "avg_latency_ms": packet_sim.avg_latency_ms,
+            "median_latency_ms": packet_sim.median_latency_ms,
+            "p95_latency_ms": packet_sim.p95_latency_ms,
+            "max_latency_ms": packet_sim.max_latency_ms,
+            "jitter_ms": packet_sim.jitter_ms,
+            "throughput_kbps": packet_sim.throughput_kbps,
+            "reconciled": packet_sim.accounting_reconciled,
+            "reconciliation_details": packet_sim.reconciliation_details,
+            "path": packet_sim.actual_path or path or [],
+            "hops": len(packet_sim.actual_path) - 1 if packet_sim.actual_path else (len(path) - 1 if path else 0),
+            "packets_sample": [p.model_dump() for p in packet_sim.packets[:10]],
+            "timeline_events": packet_sim.timeline_events,
         }
         result_status = "SUCCESS"
-        route_str = " -> ".join(path)
-        event_msg = f"Simulation run {run_id} completed successfully via {route_str} ({latency}ms)."
+        route_str = " -> ".join(packet_sim.actual_path or path or [])
+        event_msg = (
+            f"Simulation run {run_id} completed successfully via {route_str} "
+            f"({packet_sim.avg_latency_ms}ms avg latency, {packet_sim.delivered_count}/{packet_sim.total_packets_generated} pkts delivered)."
+        )
     else:
         packet_stats = {
-            "total_packets": packet_count,
+            "total_packets": packet_sim.total_packets_generated,
             "delivered": 0,
-            "dropped": packet_count,
+            "dropped": packet_sim.total_packets_generated,
+            "buffered": 0,
+            "retransmissions": packet_sim.retransmitted_count,
             "delivery_rate_pct": 0.0,
+            "loss_ratio_pct": 100.0,
             "avg_latency_ms": 0.0,
+            "median_latency_ms": 0.0,
+            "p95_latency_ms": 0.0,
+            "max_latency_ms": 0.0,
+            "jitter_ms": 0.0,
+            "throughput_kbps": 0.0,
+            "reconciled": True,
+            "reconciliation_details": packet_sim.reconciliation_details,
             "path": [],
             "hops": 0,
+            "packets_sample": [p.model_dump() for p in packet_sim.packets[:10]],
+            "timeline_events": packet_sim.timeline_events,
         }
         result_status = "FAILED"
         event_msg = f"Simulation run {run_id} failed: target {dest} unreachable from {src} due to outages."
@@ -159,8 +205,9 @@ def create_simulation_run(
         },
         final_state={
             "result": result_status,
-            "path": path or [],
-            "latency_ms": latency if success else 0.0,
+            "path": (packet_sim.actual_path or path or []),
+            "latency_ms": packet_sim.avg_latency_ms if success else 0.0,
+            "alternate_path_selected": packet_sim.alternate_path_used,
         },
         result=result_status,
         recovery_duration=duration_sec,
