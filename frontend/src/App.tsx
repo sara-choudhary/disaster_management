@@ -6,6 +6,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { NetworkTopologyPage } from './pages/NetworkTopologyPage';
 import { ScenariosPage } from './pages/ScenariosPage';
 import { TrafficPage } from './pages/TrafficPage';
+import { RoutingLabPage } from './pages/RoutingLabPage';
 import { SimulationPage } from './pages/SimulationPage';
 import { TelemetryPage } from './pages/TelemetryPage';
 import { AlertsPage } from './pages/AlertsPage';
@@ -24,9 +25,10 @@ export const App: React.FC = () => {
             <Route index element={<LandingPage />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="topology" element={<NetworkTopologyPage />} />
+            <Route path="routing-lab" element={<RoutingLabPage />} />
             <Route path="scenarios" element={<ScenariosPage />} />
             <Route path="traffic" element={<TrafficPage />} />
-            <Route path="simulation" element={<TrafficPage />} />
+            <Route path="simulation" element={<SimulationPage />} />
             <Route path="router-drill" element={<SimulationPage />} />
             <Route path="telemetry" element={<TelemetryPage />} />
             <Route path="alerts" element={<AlertsPage />} />

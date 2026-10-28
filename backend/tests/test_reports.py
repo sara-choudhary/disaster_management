@@ -144,3 +144,44 @@ def test_export_simulation_detail_json(client):
     assert "initial_topology" in detail_data
     assert "final_topology" in detail_data
     assert "events_triggered" in detail_data
+
+
+def test_export_traffic_qos_csv_and_json(client):
+    csv_res = client.get("/api/v1/traffic/export/csv")
+    assert csv_res.status_code == 200
+    assert "text/csv" in csv_res.headers["content-type"]
+    assert csv_res.text.startswith("\ufeff")
+    assert "Scheduler Discipline" in csv_res.text
+    assert "Strict Priority" in csv_res.text
+
+    json_res = client.get("/api/v1/traffic/export/json")
+    assert json_res.status_code == 200
+    data = json.loads(json_res.text)
+    assert "schedulers" in data
+    assert len(data["schedulers"]) >= 4
+
+
+def test_export_telemetry_csv_and_json(client):
+    csv_res = client.get("/api/v1/telemetry/export/csv")
+    assert csv_res.status_code == 200
+    assert "text/csv" in csv_res.headers["content-type"]
+    assert csv_res.text.startswith("\ufeff")
+    assert "Network Availability (%)" in csv_res.text
+
+    json_res = client.get("/api/v1/telemetry/export/json")
+    assert json_res.status_code == 200
+    data = json.loads(json_res.text)
+    assert "availability_over_time" in data
+
+
+def test_export_alerts_csv_and_json(client):
+    csv_res = client.get("/api/v1/alerts/export/csv")
+    assert csv_res.status_code == 200
+    assert "text/csv" in csv_res.headers["content-type"]
+    assert csv_res.text.startswith("\ufeff")
+    assert "Alert ID" in csv_res.text
+
+    json_res = client.get("/api/v1/alerts/export/json")
+    assert json_res.status_code == 200
+    data = json.loads(json_res.text)
+    assert isinstance(data, list)

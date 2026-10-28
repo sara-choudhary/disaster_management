@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, API_BASE_URL } from './client';
 
 export interface ConciseSummary {
   network_availability_pct: number | null;
@@ -156,36 +156,58 @@ export async function fetchSimulationReport(runId: string): Promise<SimulationRu
   return apiClient<SimulationRunReportResponse>(`/api/v1/reports/simulations/${encodeURIComponent(runId)}`);
 }
 
-export async function downloadHistoryCsv(): Promise<void> {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
-  const response = await fetch(`${baseUrl}/api/v1/reports/export/csv`);
+async function triggerDownload(endpoint: string, fallbackFilename: string): Promise<void> {
+  const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Failed to export simulation history CSV: ${response.statusText}`);
+    let errorDetail = response.statusText;
+    try {
+      const errJson = await response.json();
+      errorDetail = errJson.detail || errJson.message || errorDetail;
+    } catch {
+      // ignore parsing error
+    }
+    throw new Error(`Download failed (${response.status}): ${errorDetail}`);
   }
   const blob = await response.blob();
-  const url = window.URL.createObjectURL(blob);
+  const blobUrl = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', 'simulation_history.csv');
+  link.href = blobUrl;
+  link.setAttribute('download', fallbackFilename);
   document.body.appendChild(link);
   link.click();
   link.parentNode?.removeChild(link);
-  window.URL.revokeObjectURL(url);
+  window.URL.revokeObjectURL(blobUrl);
+}
+
+export async function downloadHistoryCsv(): Promise<void> {
+  return triggerDownload('/api/v1/reports/export/csv', 'simulation_history.csv');
 }
 
 export async function downloadSimulationJson(runId: string): Promise<void> {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
-  const response = await fetch(`${baseUrl}/api/v1/reports/export/json/${encodeURIComponent(runId)}`);
-  if (!response.ok) {
-    throw new Error(`Failed to export simulation drill JSON: ${response.statusText}`);
-  }
-  const blob = await response.blob();
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', `simulation_${runId}.json`);
-  document.body.appendChild(link);
-  link.click();
-  link.parentNode?.removeChild(link);
-  window.URL.revokeObjectURL(url);
+  return triggerDownload(`/api/v1/reports/export/json/${encodeURIComponent(runId)}`, `simulation_${runId}.json`);
+}
+
+export async function downloadTrafficQoSCsv(): Promise<void> {
+  return triggerDownload('/api/v1/traffic/export/csv', 'qos_schedulers_benchmark.csv');
+}
+
+export async function downloadTrafficQoSJson(): Promise<void> {
+  return triggerDownload('/api/v1/traffic/export/json', 'qos_schedulers_benchmark.json');
+}
+
+export async function downloadTelemetryCsv(timeRange: string = '24h'): Promise<void> {
+  return triggerDownload(`/api/v1/telemetry/export/csv?time_range=${encodeURIComponent(timeRange)}`, `telemetry_history_${timeRange}.csv`);
+}
+
+export async function downloadTelemetryJson(timeRange: string = '24h'): Promise<void> {
+  return triggerDownload(`/api/v1/telemetry/export/json?time_range=${encodeURIComponent(timeRange)}`, `telemetry_history_${timeRange}.json`);
+}
+
+export async function downloadAlertsCsv(): Promise<void> {
+  return triggerDownload('/api/v1/alerts/export/csv', 'alerts_incidents.csv');
+}
+
+export async function downloadAlertsJson(): Promise<void> {
+  return triggerDownload('/api/v1/alerts/export/json', 'alerts_incidents.json');
 }

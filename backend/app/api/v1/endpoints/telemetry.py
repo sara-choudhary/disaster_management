@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -62,3 +62,33 @@ async def run_telemetry_drill(
     })
 
     return SimulationRunRecordResponse.model_validate(sim_run)
+
+
+@router.get("/export/csv", tags=["Telemetry"])
+def export_telemetry_csv(
+    time_range: str = Query("24h", description="Time range: 15m, 1h, 6h, 24h, all"),
+    db: Session = Depends(get_db),
+):
+    """Export telemetry historical trends as a CSV document."""
+    from app.services import simulation_service
+    csv_content = simulation_service.export_telemetry_csv(db=db, time_range=time_range)
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=telemetry_history.csv"},
+    )
+
+
+@router.get("/export/json", tags=["Telemetry"])
+def export_telemetry_json(
+    time_range: str = Query("24h", description="Time range: 15m, 1h, 6h, 24h, all"),
+    db: Session = Depends(get_db),
+):
+    """Export telemetry historical trends in JSON format."""
+    from app.services import simulation_service
+    json_content = simulation_service.export_telemetry_json(db=db, time_range=time_range)
+    return Response(
+        content=json_content,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=telemetry_history.json"},
+    )

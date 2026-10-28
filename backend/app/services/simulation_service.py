@@ -699,8 +699,18 @@ def get_simulation_report(db: Session, run_id: str) -> SimulationRunReportRespon
     )
 
 
+def _sanitize_csv_cell(value: Any) -> Any:
+    """Sanitize CSV cells against spreadsheet formula injection (CWE-1236)."""
+    if value is None:
+        return ""
+    val_str = str(value)
+    if val_str and val_str[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return f"'{val_str}"
+    return val_str
+
+
 def export_simulation_history_csv(db: Session) -> str:
-    """Generate CSV export from actual database simulation run records."""
+    """Generate CSV export from actual database simulation run records with formula injection protection and UTF-8 BOM."""
     seed_database_idempotent(db)
     seed_baseline_simulation_runs_if_empty(db)
     runs = db.query(SimulationRun).order_by(desc(SimulationRun.start_time)).all()
@@ -740,7 +750,7 @@ def export_simulation_history_csv(db: Session) -> str:
             else (len(init_failed) > 0 and len(path) > 0)
         )
 
-        writer.writerow([
+        row = [
             r.run_id,
             r.scenario_id or "UNASSIGNED",
             scen_name,
@@ -753,13 +763,164 @@ def export_simulation_history_csv(db: Session) -> str:
             lost if lost is not None else "N/A",
             f"{ratio:.1f}%" if ratio is not None else "N/A",
             "YES" if alt_selected else "NO",
-        ])
+        ]
+        writer.writerow([_sanitize_csv_cell(cell) for cell in row])
 
-    return output.getvalue()
+    return "\ufeff" + output.getvalue()
 
 
 def export_simulation_detail_json(db: Session, run_id: str) -> str:
     """Generate detailed JSON export from actual database simulation run record."""
     report = get_simulation_report(db, run_id)
     return json.dumps(report.model_dump(), indent=2, default=str)
+
+
+def export_qos_csv(db: Session) -> str:
+    """Generate CSV export of QoS schedulers comparison benchmark."""
+    from app.services import qos_service
+    comp = qos_service.compare_qos_schedulers(db=db)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Scheduler Discipline",
+        "Policy Code",
+        "Starvation Observed",
+        "Safeguard Active",
+        "Total Bandwidth Allocated (Mbps)",
+        "Traffic Class",
+        "Priority Level",
+        "Offered Load (Mbps)",
+        "Allocated Bandwidth (Mbps)",
+        "Delivery Ratio (%)",
+        "Queue Delay (ms)",
+        "Packets Sent",
+        "Packets Delivered",
+        "Packets Dropped",
+        "Queue Status",
+    ])
+
+    for sched in comp.schedulers:
+        for cl in sched.results_by_class:
+            row = [
+                sched.policy_name,
+                sched.policy_key,
+                "YES" if sched.starvation_observed else "NO",
+                "YES" if sched.starvation_safeguard_active else "NO",
+                f"{comp.bottleneck_capacity_mbps:.1f}",
+                cl.class_name,
+                cl.priority,
+                f"{cl.offered_mbps:.1f}",
+                f"{cl.allocated_mbps:.1f}",
+                f"{cl.delivery_ratio_pct:.1f}%",
+                f"{cl.queue_delay_ms:.2f}",
+                cl.packets_sent,
+                cl.packets_delivered,
+                cl.packets_lost,
+                cl.status,
+            ]
+            writer.writerow([_sanitize_csv_cell(c) for c in row])
+
+    return "\ufeff" + output.getvalue()
+
+
+def export_qos_json(db: Session) -> str:
+    """Generate JSON export of QoS schedulers comparison benchmark."""
+    from app.services import qos_service
+    comp = qos_service.compare_qos_schedulers(db=db)
+    return json.dumps(comp.model_dump(), indent=2, default=str)
+
+
+def export_telemetry_csv(db: Session, time_range: str = "24h") -> str:
+    """Generate CSV export of telemetry timeseries points."""
+    from app.services import telemetry_service
+    telem = telemetry_service.get_telemetry_data(db=db, time_range=time_range)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Timestamp",
+        "Network Availability (%)",
+        "Latency (ms)",
+        "Packet Delivery Ratio (%)",
+        "Packet Loss (%)",
+        "Link Utilization (%)",
+        "Recovery Duration (s)",
+        "Route Changes Count",
+    ])
+
+    # Interleave points by timestamp index
+    pts_len = len(telem.availability_over_time)
+    for i in range(pts_len):
+        ts = telem.availability_over_time[i].timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        avail = telem.availability_over_time[i].availability_pct
+        lat = telem.latency_over_time[i].estimated_latency_ms if i < len(telem.latency_over_time) else "N/A"
+        pdr = telem.packet_delivery_and_loss[i].delivery_ratio_pct if i < len(telem.packet_delivery_and_loss) else "N/A"
+        ploss = telem.packet_delivery_and_loss[i].packet_loss_pct if i < len(telem.packet_delivery_and_loss) else "N/A"
+        util = telem.snapshot.current_health_score
+        rec = telem.recovery_duration[i].recovery_duration_sec if i < len(telem.recovery_duration) else "N/A"
+        rc = telem.route_changes_over_time[i].route_changes_count if i < len(telem.route_changes_over_time) else "N/A"
+        row = [ts, f"{avail:.1f}%", lat, pdr, ploss, util, rec, rc]
+        writer.writerow([_sanitize_csv_cell(c) for c in row])
+
+    return "\ufeff" + output.getvalue()
+
+
+def export_telemetry_json(db: Session, time_range: str = "24h") -> str:
+    """Generate JSON export of telemetry metrics."""
+    from app.services import telemetry_service
+    telem = telemetry_service.get_telemetry_data(db=db, time_range=time_range)
+    return json.dumps(telem.model_dump(), indent=2, default=str)
+
+
+def export_alerts_csv(db: Session) -> str:
+    """Generate CSV export of all operational alerts and incident logs."""
+    seed_database_idempotent(db)
+    alerts = db.query(Alert).order_by(desc(Alert.timestamp)).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Alert ID",
+        "Timestamp (UTC)",
+        "Severity",
+        "Category",
+        "Status",
+        "Affected Resource",
+        "Title",
+        "Description",
+    ])
+
+    for a in alerts:
+        row = [
+            a.alert_id,
+            a.timestamp.strftime("%Y-%m-%d %H:%M:%S") if a.timestamp else "N/A",
+            a.severity,
+            a.category,
+            a.status,
+            a.affected_resource or "N/A",
+            a.title,
+            a.description or "",
+        ]
+        writer.writerow([_sanitize_csv_cell(c) for c in row])
+
+    return "\ufeff" + output.getvalue()
+
+
+def export_alerts_json(db: Session) -> str:
+    """Generate JSON export of operational alerts and incident logs."""
+    seed_database_idempotent(db)
+    alerts = db.query(Alert).order_by(desc(Alert.timestamp)).all()
+    dicts = [
+        {
+            "alert_id": a.alert_id,
+            "timestamp": a.timestamp.isoformat() if a.timestamp else None,
+            "severity": a.severity,
+            "category": a.category,
+            "status": a.status,
+            "affected_resource": a.affected_resource,
+            "title": a.title,
+            "description": a.description,
+            "related_run": a.related_run,
+        }
+        for a in alerts
+    ]
+    return json.dumps(dicts, indent=2, default=str)
 

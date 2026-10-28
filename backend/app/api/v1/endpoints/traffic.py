@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Dict, Any
 import uuid
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -74,6 +74,30 @@ def compare_traffic_schedulers(
     Demonstrates lower-class starvation under Strict Priority and fairness/guarantees under WFQ.
     """
     return qos_service.compare_qos_schedulers(db=db, request=payload)
+
+
+@router.get("/export/csv", tags=["Traffic & QoS"])
+def export_traffic_qos_csv(db: Session = Depends(get_db)):
+    """Export the QoS comparative bandwidth allocation matrix as a CSV document."""
+    from app.services import simulation_service
+    csv_content = simulation_service.export_qos_csv(db)
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=qos_schedulers_benchmark.csv"},
+    )
+
+
+@router.get("/export/json", tags=["Traffic & QoS"])
+def export_traffic_qos_json(db: Session = Depends(get_db)):
+    """Export the QoS comparative bandwidth allocation matrix in JSON format."""
+    from app.services import simulation_service
+    json_content = simulation_service.export_qos_json(db)
+    return Response(
+        content=json_content,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=qos_schedulers_benchmark.json"},
+    )
 
 
 

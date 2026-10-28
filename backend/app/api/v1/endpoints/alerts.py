@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import List, Optional
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -94,6 +94,30 @@ async def create_alert(payload: AlertCreate, db: Session = Depends(get_db)):
     })
 
     return alert
+
+
+@router.get("/export/csv", tags=["Alerts"])
+def export_alerts_csv(db: Session = Depends(get_db)):
+    """Export all operational alerts and incident logs as a CSV document."""
+    from app.services import simulation_service
+    csv_content = simulation_service.export_alerts_csv(db=db)
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=alerts_incidents.csv"},
+    )
+
+
+@router.get("/export/json", tags=["Alerts"])
+def export_alerts_json(db: Session = Depends(get_db)):
+    """Export all operational alerts and incident logs in JSON format."""
+    from app.services import simulation_service
+    json_content = simulation_service.export_alerts_json(db=db)
+    return Response(
+        content=json_content,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=alerts_incidents.json"},
+    )
 
 
 @router.patch("/{alert_id}", response_model=AlertResponse, tags=["Alerts"])

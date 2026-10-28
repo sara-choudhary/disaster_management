@@ -10,6 +10,7 @@ import {
   FileSearch,
   Activity,
   Check,
+  Download,
 } from 'lucide-react';
 import {
   AlertRecord,
@@ -24,6 +25,7 @@ import {
   fetchEventsWithFilters,
 } from '../api/events';
 import { fetchSimulationRuns, SimulationRunRecord } from '../api/simulation';
+import { downloadAlertsCsv, downloadAlertsJson } from '../api/reports';
 import { NetworkEventItem } from '../types';
 import { useNetworkEvents } from '../context/NetworkEventContext';
 
@@ -56,8 +58,31 @@ export const AlertsPage: React.FC = () => {
 
   // General Status
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
   const { subscribe, isLive } = useNetworkEvents();
   const wsConnected = isLive;
+
+  const handleExportCsv = async () => {
+    try {
+      setExporting('csv');
+      await downloadAlertsCsv();
+    } catch (err: any) {
+      alert(err?.message || 'Failed to export alerts CSV');
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const handleExportJson = async () => {
+    try {
+      setExporting('json');
+      await downloadAlertsJson();
+    } catch (err: any) {
+      alert(err?.message || 'Failed to export alerts JSON');
+    } finally {
+      setExporting(null);
+    }
+  };
 
   // 1. Fetch Filtered Alerts
   const loadAlerts = useCallback(async () => {
@@ -220,7 +245,26 @@ export const AlertsPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCsv}
+            disabled={exporting !== null}
+            className="flex items-center gap-1 px-2.5 py-1.5 bg-coastal-cream hover:bg-coastal-powder border border-coastal-border rounded-md text-xs font-semibold text-coastal-text shadow-coastal-sm transition-all disabled:opacity-50"
+            title="Export Alerts CSV"
+          >
+            <Download className="w-3.5 h-3.5 text-coastal-cerulean" />
+            <span>{exporting === 'csv' ? 'Exporting...' : 'CSV'}</span>
+          </button>
+          <button
+            onClick={handleExportJson}
+            disabled={exporting !== null}
+            className="flex items-center gap-1 px-2.5 py-1.5 bg-coastal-cream hover:bg-coastal-powder border border-coastal-border rounded-md text-xs font-semibold text-coastal-text shadow-coastal-sm transition-all disabled:opacity-50"
+            title="Export Alerts JSON"
+          >
+            <Download className="w-3.5 h-3.5 text-coastal-cerulean" />
+            <span>{exporting === 'json' ? 'Exporting...' : 'JSON'}</span>
+          </button>
+
           <div
             className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-mono font-medium ${
               wsConnected

@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   Share2,
+  GitFork,
   Sliders,
   Send,
   Cpu,
@@ -26,6 +27,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { name: 'Overview', to: '/dashboard', icon: LayoutDashboard },
   { name: 'Network Topology', to: '/topology', icon: Share2 },
+  { name: 'Routing Lab', to: '/routing-lab', icon: GitFork },
   { name: 'Scenarios', to: '/scenarios', icon: Sliders },
   { name: 'Traffic & QoS', to: '/traffic', icon: Send },
   { name: 'Telemetry', to: '/telemetry', icon: Cpu },

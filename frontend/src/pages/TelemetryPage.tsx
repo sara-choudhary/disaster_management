@@ -28,9 +28,11 @@ import {
   Radio,
   Server,
   Zap,
+  Download,
 } from 'lucide-react';
 import { TelemetryResponse } from '../types';
 import { fetchTelemetry, triggerTelemetryDrill } from '../api/telemetry';
+import { downloadTelemetryCsv, downloadTelemetryJson } from '../api/reports';
 import { useNetworkEvents } from '../context/NetworkEventContext';
 
 // Established Muted Pastel Palette Constants
@@ -149,6 +151,30 @@ export const TelemetryPage: React.FC = () => {
     { id: 'all', label: 'All Drills' },
   ];
 
+  const [exporting, setExporting] = useState<string | null>(null);
+
+  const handleExportCsv = async () => {
+    try {
+      setExporting('csv');
+      await downloadTelemetryCsv(timeRange);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to export telemetry CSV');
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const handleExportJson = async () => {
+    try {
+      setExporting('json');
+      await downloadTelemetryJson(timeRange);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to export telemetry JSON');
+    } finally {
+      setExporting(null);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       {/* 1. Header & Controls */}
@@ -198,6 +224,28 @@ export const TelemetryPage: React.FC = () => {
                 {r.label}
               </button>
             ))}
+          </div>
+
+          {/* Export Actions */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleExportCsv}
+              disabled={exporting !== null}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-coastal-cream hover:bg-coastal-powder border border-coastal-border rounded-md text-xs font-semibold text-coastal-text shadow-coastal-sm transition-all disabled:opacity-50"
+              title="Export Telemetry CSV"
+            >
+              <Download className="w-3.5 h-3.5 text-coastal-cerulean" />
+              <span>{exporting === 'csv' ? 'Exporting...' : 'CSV'}</span>
+            </button>
+            <button
+              onClick={handleExportJson}
+              disabled={exporting !== null}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-coastal-cream hover:bg-coastal-powder border border-coastal-border rounded-md text-xs font-semibold text-coastal-text shadow-coastal-sm transition-all disabled:opacity-50"
+              title="Export Telemetry JSON"
+            >
+              <Download className="w-3.5 h-3.5 text-coastal-cerulean" />
+              <span>{exporting === 'json' ? 'Exporting...' : 'JSON'}</span>
+            </button>
           </div>
 
           {/* Action: Run Drill */}

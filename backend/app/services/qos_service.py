@@ -469,7 +469,7 @@ def simulate_traffic_qos(
 
 def compare_qos_schedulers(
     db: Session,
-    request: QoSSimulationRequest,
+    request: Optional[QoSSimulationRequest] = None,
 ) -> SchedulerComparisonResponse:
     """
     Execute deterministic comparative evaluation across all 4 scheduling policies:
@@ -479,6 +479,16 @@ def compare_qos_schedulers(
     4. Round Robin (RR) - equal-share allocation without emergency prioritization
     """
     seed_database_idempotent(db)
+    if request is None:
+        request = QoSSimulationRequest(
+            source_department="Emergency Control Center",
+            destination_department="Hospital",
+            traffic_class="CRITICAL",
+            packet_count=100,
+            offered_load_mbps=50.0,
+            test_duration_sec=10.0,
+            competing_traffic=True,
+        )
     nodes_dict = {n.node_id: n for n in db.query(NetworkNode).all()}
     links_dict = {l.link_id: l for l in db.query(NetworkLink).all()}
 
