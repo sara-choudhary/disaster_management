@@ -219,4 +219,65 @@ describe('TrafficPage', () => {
       expect(screen.getAllByText('1.02 ms').length).toBeGreaterThanOrEqual(1);
     });
   });
+
+  it('renders Transport Layer ARQ Retransmission section explaining L3 drop vs L4 recovery', async () => {
+    render(
+      <MemoryRouter>
+        <TrafficPage />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText(/Transport Layer ARQ Retransmission & Recovery/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Why Intermediate Routers NEVER Resend Dropped Packets/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/How the Sending Host Transmits the Lost Packets Again/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/End-to-End Retransmission Lifecycle Stepper/i),
+    ).toBeInTheDocument();
+  });
+
+  it('displays retransmitted packet stream when packets are lost', async () => {
+    // Override simulate fetch to return packets_lost > 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        const u = url.toString();
+        if (u.includes('/api/v1/departments')) {
+          return Promise.resolve({ ok: true, json: async () => mockDepartments });
+        }
+        if (u.includes('/api/v1/traffic/classes')) {
+          return Promise.resolve({ ok: true, json: async () => mockTrafficClasses });
+        }
+        if (u.includes('/api/v1/traffic/simulate')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              ...mockQoSResponse,
+              packets_sent: 100,
+              packets_delivered: 95,
+              packets_lost: 5,
+              delivery_ratio_pct: 95.0,
+            }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+      }),
+    );
+
+    render(
+      <MemoryRouter>
+        <TrafficPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText(/5 Dropped Pkts Recoverable/i)).toBeInTheDocument();
+    expect(screen.getByText(/Retransmitted Packet Sample Stream/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/DROPPED_TAIL_DROP/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/DELIVERED_ACK/i).length).toBeGreaterThanOrEqual(1);
+  });
 });

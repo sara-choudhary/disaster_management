@@ -10,6 +10,8 @@ import {
   GitCompare,
   CheckCircle2,
   Download,
+  RotateCcw,
+  ArrowRight,
 } from 'lucide-react';
 import {
   QoSSimulationRequest,
@@ -55,6 +57,25 @@ export const TrafficPage: React.FC = () => {
   const [schedulerComparison, setSchedulerComparison] = useState<SchedulerComparisonResponse | null>(null);
   const [schedulerLoading, setSchedulerLoading] = useState<boolean>(false);
   const [exporting, setExporting] = useState<string | null>(null);
+
+  // Transport Layer (L4 ARQ) Retransmission Simulation State
+  const [arqStep, setArqStep] = useState<number>(4);
+  const [isSimulatingArq, setIsSimulatingArq] = useState<boolean>(false);
+
+  const handleSimulateArq = () => {
+    setIsSimulatingArq(true);
+    setArqStep(1);
+    setTimeout(() => {
+      setArqStep(2);
+      setTimeout(() => {
+        setArqStep(3);
+        setTimeout(() => {
+          setArqStep(4);
+          setIsSimulatingArq(false);
+        }, 700);
+      }, 700);
+    }, 700);
+  };
 
   const handleExportCsv = async () => {
     try {
@@ -514,7 +535,14 @@ export const TrafficPage: React.FC = () => {
 
           {/* Card 3: Packets Lost */}
           <div className="bg-coastal-cream border border-coastal-border rounded-2xl p-3.5 shadow-coastal-sm flex flex-col justify-between">
-            <span className="text-[10px] font-bold text-coastal-text-muted uppercase">Packets Lost</span>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-coastal-text-muted uppercase">Packets Lost</span>
+              {result.packets_lost > 0 && (
+                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-coastal-dusty-rose/15 text-coastal-dusty-rose">
+                  L3 Drop
+                </span>
+              )}
+            </div>
             <div
               className={`mt-2 text-xl font-black font-mono ${
                 result.packets_lost > 0 ? 'text-coastal-critical-text' : 'text-coastal-text'
@@ -522,9 +550,20 @@ export const TrafficPage: React.FC = () => {
             >
               {result.packets_lost}
             </div>
-            <span className="text-[10px] text-coastal-text-muted mt-0.5">
-              {result.packets_lost > 0 ? 'Tail dropped' : 'Zero drop'}
-            </span>
+            <div className="flex items-center justify-between mt-0.5 text-[10px]">
+              <span className="text-coastal-text-muted">
+                {result.packets_lost > 0 ? 'Tail dropped' : 'Zero drop'}
+              </span>
+              {result.packets_lost > 0 && (
+                <a
+                  href="#l4-arq-recovery"
+                  className="font-bold text-coastal-dusty-rose hover:underline flex items-center gap-0.5"
+                >
+                  <span>Resend Log</span>
+                  <ArrowRight className="w-2.5 h-2.5" />
+                </a>
+              )}
+            </div>
           </div>
 
           {/* Card 4: Delivery Ratio */}
@@ -763,6 +802,294 @@ export const TrafficPage: React.FC = () => {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------- Transport Layer (L4 ARQ / TCP) Packet Retransmission & Recovery ---------------- */}
+      {result && (
+        <div
+          id="l4-arq-recovery"
+          className="bg-coastal-cream border border-coastal-border rounded-2xl p-5 shadow-coastal-sm space-y-4"
+        >
+          {/* Section Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-coastal-border pb-3">
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="p-1.5 bg-coastal-dusty-rose/15 text-coastal-dusty-rose rounded-lg border border-coastal-dusty-rose/25">
+                  <RotateCcw className="w-4 h-4" />
+                </div>
+                <h2 className="text-sm font-bold text-coastal-text">
+                  Transport Layer ARQ Retransmission & Recovery (L4 TCP Model)
+                </h2>
+                {result.packets_lost > 0 ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-coastal-dusty-rose/15 text-coastal-dusty-rose border border-coastal-dusty-rose/30">
+                    {result.packets_lost} Dropped Pkts Recoverable
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-coastal-safe/25 text-coastal-safe-text border border-coastal-safe-border">
+                    100% Direct Delivery (0 Drops)
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-coastal-text-muted mt-1">
+                How dropped packets at intermediate router queues are buffered, resent, and recovered end-to-end by the sending host.
+              </p>
+            </div>
+
+            <button
+              onClick={handleSimulateArq}
+              disabled={isSimulatingArq}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-coastal-powder hover:bg-coastal-powder/80 text-coastal-cerulean border border-coastal-border rounded-xl text-xs font-bold shadow-coastal-sm transition-all disabled:opacity-50 self-start sm:self-auto"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSimulatingArq ? 'animate-spin' : ''}`} />
+              <span>
+                {isSimulatingArq
+                  ? 'Executing ARQ Cycle...'
+                  : result.packets_lost > 0
+                  ? 'Re-run ARQ Retransmission'
+                  : 'Simulate Modeled ARQ Cycle'}
+              </span>
+            </button>
+          </div>
+
+          {/* Educational Callout: Why Router Doesn't Resend vs How Source Host Resends */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div className="p-3.5 bg-coastal-cream-dark/40 border border-coastal-border rounded-xl space-y-1.5">
+              <span className="font-bold text-coastal-critical-text block text-[11px] uppercase tracking-wide flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-coastal-critical" />
+                Why Intermediate Routers NEVER Resend Dropped Packets
+              </span>
+              <p className="text-coastal-text-muted text-[11px] leading-relaxed">
+                At Layer 3 (IP), intermediate routers ({result.bottleneck_link_id.replace('LINK-', 'ROUTER-')}) discard excess packets during congestion (tail drop). Routers <span className="font-semibold text-coastal-text">cannot retransmit packets</span> because maintaining per-flow retransmission buffers in router memory causes bufferbloat, line head-of-line blocking, and catastrophic network-wide congestion collapse.
+              </p>
+            </div>
+
+            <div className="p-3.5 bg-coastal-cream-dark/40 border border-coastal-border rounded-xl space-y-1.5">
+              <span className="font-bold text-coastal-safe-text block text-[11px] uppercase tracking-wide flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-coastal-safe-text" />
+                How the Sending Host Transmits the Lost Packets Again
+              </span>
+              <p className="text-coastal-text-muted text-[11px] leading-relaxed">
+                The source host (<span className="font-semibold text-coastal-text">{result.source_department}</span>) retains each packet in its local socket retransmit buffer at Layer 4 (TCP / ARQ). When no ACK arrives before the Retransmission Timeout (<span className="font-mono font-semibold text-coastal-cerulean">RTO = {(result.estimated_latency_ms * 2 + 10).toFixed(1)}ms</span>) expires, the host resends the packet with retry flag <span className="font-mono text-coastal-dusty-rose">[ATTEMPT_2]</span>.
+              </p>
+            </div>
+          </div>
+
+          {/* 4-Stage Lifecycle Stepper */}
+          <div className="bg-coastal-cream-dark/50 border border-coastal-border rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <span className="text-[10px] font-bold text-coastal-text-muted uppercase tracking-wider">
+                End-to-End Retransmission Lifecycle Stepper
+              </span>
+              <span className="text-[10px] font-mono text-coastal-cerulean font-semibold">
+                {arqStep === 1 && 'Step 1: Router Tail-Drop Detection'}
+                {arqStep === 2 && 'Step 2: Source Socket Buffer Hold & RTO Expiry'}
+                {arqStep === 3 && 'Step 3: ARQ Retransmission Injected (Attempt #2)'}
+                {arqStep >= 4 && 'Step 4: Alternate Window Delivery & Cumulative ACK'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
+              <div
+                className={`p-3 rounded-xl border transition-all ${
+                  arqStep >= 1
+                    ? 'bg-coastal-critical/15 border-coastal-critical-border text-coastal-text'
+                    : 'bg-coastal-cream border-coastal-border opacity-50'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-bold mb-1">
+                  <span className="w-5 h-5 rounded-md bg-coastal-dusty-rose text-white flex items-center justify-center text-[10px] font-mono">1</span>
+                  <span>L3 Router Drop</span>
+                </div>
+                <p className="text-[11px] text-coastal-text-muted">
+                  Queue on {result.bottleneck_link_id} exceeded buffer. {result.packets_lost > 0 ? `${result.packets_lost} pkt(s) tail dropped.` : '0 pkts dropped.'}
+                </p>
+              </div>
+
+              <div
+                className={`p-3 rounded-xl border transition-all ${
+                  arqStep >= 2
+                    ? 'bg-coastal-warning/15 border-coastal-warning-border text-coastal-text'
+                    : 'bg-coastal-cream border-coastal-border opacity-50'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-bold mb-1">
+                  <span className="w-5 h-5 rounded-md bg-coastal-warning text-coastal-warning-text flex items-center justify-center text-[10px] font-mono">2</span>
+                  <span>RTO Timer Wait</span>
+                </div>
+                <p className="text-[11px] text-coastal-text-muted">
+                  Sender buffer awaits ACK. RTO timer ({((result.estimated_latency_ms * 2) + 10).toFixed(1)}ms) expires; 3 DupACKs detected.
+                </p>
+              </div>
+
+              <div
+                className={`p-3 rounded-xl border transition-all ${
+                  arqStep >= 3
+                    ? 'bg-coastal-powder border-coastal-cerulean/40 text-coastal-text'
+                    : 'bg-coastal-cream border-coastal-border opacity-50'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-bold mb-1">
+                  <span className="w-5 h-5 rounded-md bg-coastal-cerulean text-white flex items-center justify-center text-[10px] font-mono">3</span>
+                  <span>ARQ Retransmit</span>
+                </div>
+                <p className="text-[11px] text-coastal-text-muted">
+                  Sender pulls packet from socket buffer, throttles cwnd, and resends with [RETRY_#1] header.
+                </p>
+              </div>
+
+              <div
+                className={`p-3 rounded-xl border transition-all ${
+                  arqStep >= 4
+                    ? 'bg-coastal-safe/25 border-coastal-safe-border text-coastal-text'
+                    : 'bg-coastal-cream border-coastal-border opacity-50'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-bold mb-1">
+                  <span className="w-5 h-5 rounded-md bg-coastal-safe text-coastal-safe-text flex items-center justify-center text-[10px] font-mono">4</span>
+                  <span>Delivered & ACK</span>
+                </div>
+                <p className="text-[11px] text-coastal-text-muted">
+                  Packet arrives at {result.destination_department}. Receiver returns ACK; sender frees socket buffer.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Recovery Performance Metrics Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="bg-coastal-cream-dark/40 border border-coastal-border rounded-xl p-3">
+              <span className="text-[10px] font-bold text-coastal-text-muted uppercase block">Attempt #1 Delivery</span>
+              <span className="text-base font-black font-mono text-coastal-text mt-1 block">
+                {result.packets_delivered} / {result.packets_sent}
+              </span>
+              <span className="text-[10px] text-coastal-text-muted">{result.delivery_ratio_pct}% direct L3</span>
+            </div>
+
+            <div className="bg-coastal-cream-dark/40 border border-coastal-border rounded-xl p-3">
+              <span className="text-[10px] font-bold text-coastal-text-muted uppercase block">L3 Queue Drops</span>
+              <span className={`text-base font-black font-mono mt-1 block ${result.packets_lost > 0 ? 'text-coastal-critical-text' : 'text-coastal-text'}`}>
+                {result.packets_lost} pkts
+              </span>
+              <span className="text-[10px] text-coastal-text-muted">Buffer overflow</span>
+            </div>
+
+            <div className="bg-coastal-cream-dark/40 border border-coastal-border rounded-xl p-3">
+              <span className="text-[10px] font-bold text-coastal-text-muted uppercase block">L4 Retransmissions</span>
+              <span className="text-base font-black font-mono text-coastal-dusty-rose mt-1 block">
+                {result.packets_lost > 0 ? result.packets_lost : 0} pkts
+              </span>
+              <span className="text-[10px] text-coastal-text-muted">ARQ Attempt #2</span>
+            </div>
+
+            <div className="bg-coastal-cream-dark/40 border border-coastal-border rounded-xl p-3">
+              <span className="text-[10px] font-bold text-coastal-text-muted uppercase block">Post-ARQ Delivery</span>
+              <span className="text-base font-black font-mono text-coastal-safe-text mt-1 block">
+                100.0%
+              </span>
+              <span className="text-[10px] text-coastal-text-muted">End-to-end recovered</span>
+            </div>
+
+            <div className="bg-coastal-cream-dark/40 border border-coastal-border rounded-xl p-3 col-span-2 sm:col-span-1">
+              <span className="text-[10px] font-bold text-coastal-text-muted uppercase block">ARQ Recovery Time</span>
+              <span className="text-base font-black font-mono text-coastal-cerulean mt-1 block">
+                {((result.estimated_latency_ms * 3) + 10).toFixed(1)} ms
+              </span>
+              <span className="text-[10px] text-coastal-text-muted">RTT + RTO wait</span>
+            </div>
+          </div>
+
+          {/* Sample Retransmission Stream Table */}
+          {result.packets_lost > 0 ? (
+            <div className="border border-coastal-border/80 rounded-xl overflow-hidden text-xs">
+              <div className="bg-coastal-cream-dark/60 px-3.5 py-2 border-b border-coastal-border flex items-center justify-between">
+                <span className="font-bold text-coastal-text text-[11px] uppercase tracking-wide">
+                  Retransmitted Packet Sample Stream ({Math.min(result.packets_lost, 5)} of {result.packets_lost} packets)
+                </span>
+                <span className="text-[10px] font-mono text-coastal-text-muted">
+                  Source: {result.source_department} ➔ Dest: {result.destination_department}
+                </span>
+              </div>
+              <table className="w-full text-left text-xs bg-coastal-cream">
+                <thead>
+                  <tr className="border-b border-coastal-border text-[10px] font-bold text-coastal-text-muted uppercase bg-coastal-cream-dark/30">
+                    <th className="py-2 px-3">Packet ID</th>
+                    <th className="py-2 px-3">Traffic Class</th>
+                    <th className="py-2 px-3">Attempt #1 (L3)</th>
+                    <th className="py-2 px-3">Drop Location</th>
+                    <th className="py-2 px-3 text-right">RTO Hold</th>
+                    <th className="py-2 px-3">Attempt #2 (L4 ARQ)</th>
+                    <th className="py-2 px-3 text-right">Effective Latency</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-coastal-border/60 font-mono text-[11px]">
+                  {Array.from({ length: Math.min(result.packets_lost, 5) }).map((_, idx) => {
+                    const rtoMs = ((result.estimated_latency_ms * 2) + 10).toFixed(1);
+                    const totalLatency = ((result.estimated_latency_ms * 3) + 10 + (idx * 0.4)).toFixed(1);
+                    return (
+                      <tr key={idx} className="hover:bg-coastal-powder/20">
+                        <td className="py-2.5 px-3 font-bold text-coastal-text">
+                          PKT-{result.selected_class.slice(0, 3)}-{String(idx + 1).padStart(4, '0')}
+                        </td>
+                        <td className="py-2.5 px-3 text-coastal-text font-sans text-xs">
+                          {result.selected_class}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-coastal-critical/20 text-coastal-critical-text border border-coastal-critical-border">
+                            DROPPED_TAIL_DROP
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-coastal-text-muted font-sans text-xs">
+                          {result.bottleneck_link_id}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-coastal-text">
+                          {rtoMs} ms
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                              arqStep >= 4
+                                ? 'bg-coastal-safe/25 text-coastal-safe-text border-coastal-safe-border'
+                                : 'bg-coastal-warning/25 text-coastal-warning-text border-coastal-warning-border'
+                            }`}
+                          >
+                            {arqStep >= 4 ? 'DELIVERED_ACK' : 'IN_TRANSIT'}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-bold text-coastal-cerulean">
+                          {totalLatency} ms
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-3 bg-coastal-safe/15 border border-coastal-safe-border rounded-xl text-xs text-coastal-safe-text flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-coastal-safe-text shrink-0" />
+                <span>
+                  All <span className="font-bold">{result.packets_sent} packets</span> were delivered on Attempt #1 without needing ARQ retransmissions.
+                </span>
+              </div>
+              <span className="text-[11px] font-mono font-semibold">0 Retries Required</span>
+            </div>
+          )}
+
+          {/* Link to reports and simulation drill */}
+          <div className="text-[11px] text-coastal-text-muted flex items-center justify-between flex-wrap gap-2 pt-1">
+            <span>
+              Historical drill packet streams and BFD failover retransmissions are logged in{' '}
+              <a href="/reports" className="font-semibold text-coastal-cerulean hover:underline">
+                Reports &amp; Forensic Timeline
+              </a>{' '}
+              and the{' '}
+              <a href="/simulation" className="font-semibold text-coastal-cerulean hover:underline">
+                Disaster Router Drill
+              </a>.
+            </span>
           </div>
         </div>
       )}
