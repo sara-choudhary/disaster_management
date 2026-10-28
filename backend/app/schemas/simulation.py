@@ -43,6 +43,10 @@ class SimulationRunResponse(BaseModel):
     delivery_status: str
     details: List[HopDetail]
     message_id: str
+    transmission_attempts: int = 1
+    retransmissions: int = 0
+    alternate_route_selected: bool = False
+    retry_log: Optional[List[str]] = None
 
 
 class SimulationRunRecordResponse(BaseModel):

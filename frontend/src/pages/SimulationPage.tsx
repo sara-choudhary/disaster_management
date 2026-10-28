@@ -9,6 +9,7 @@ import {
   ShieldAlert,
   Clock,
   Sliders,
+  RefreshCw,
 } from 'lucide-react';
 import {
   NetworkNode,
@@ -304,6 +305,29 @@ export const SimulationPage: React.FC = () => {
                     </span>
                   </div>
                 </div>
+
+                {/* Packet Retransmission & Resend Failover Log */}
+                {simResult.retry_log && simResult.retry_log.length > 0 && (
+                  <div className="p-4 bg-coastal-powder/60 border border-coastal-border rounded-xl space-y-2.5 shadow-coastal-sm">
+                    <div className="flex items-center justify-between border-b border-coastal-border/60 pb-2">
+                      <span className="text-xs font-bold text-coastal-text flex items-center gap-1.5 uppercase tracking-wider">
+                        <RefreshCw className="w-3.5 h-3.5 text-coastal-dusty-rose" />
+                        Packet Retransmission & Resend Log ({simResult.retransmissions || 1} Retries)
+                      </span>
+                      <span className="text-[10px] font-mono font-bold bg-coastal-safe/25 text-coastal-safe-text px-2 py-0.5 rounded border border-coastal-safe-border">
+                        RECOVERED ON ATTEMPT #{simResult.transmission_attempts || 2}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 font-mono text-[11px]">
+                      {simResult.retry_log.map((step, idx) => (
+                        <div key={idx} className="flex items-start gap-2 text-coastal-text">
+                          <span className="text-coastal-dusty-rose font-bold">[{idx + 1}]</span>
+                          <span>{step}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Path Visualizer */}
                 {simResult.path.length > 0 && (

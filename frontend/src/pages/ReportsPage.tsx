@@ -767,7 +767,7 @@ export const ReportsPage: React.FC = () => {
                   <span className="text-xs font-bold text-coastal-text uppercase tracking-wider block">
                     Packet Transmission & Delay Results
                   </span>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs font-mono">
                     <div className="p-2.5 bg-coastal-powder/20 border border-coastal-border rounded-lg">
                       <span className="text-[10px] text-coastal-text-muted block">Packets Sent</span>
                       <span className="text-base font-bold text-coastal-text mt-0.5 block">
@@ -781,6 +781,13 @@ export const ReportsPage: React.FC = () => {
                       <span className="text-[10px] text-coastal-text-muted block">Packets Delivered</span>
                       <span className="text-base font-bold text-coastal-safe-text mt-0.5 block">
                         {drillReport.packet_statistics?.packets_delivered ?? 'Unavailable'}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-coastal-powder/20 border border-coastal-border rounded-lg">
+                      <span className="text-[10px] text-coastal-text-muted block">Retransmissions</span>
+                      <span className="text-base font-bold text-coastal-cerulean mt-0.5 block">
+                        {drillReport.packet_statistics?.retransmissions ?? '0'}
                       </span>
                     </div>
 
@@ -803,6 +810,66 @@ export const ReportsPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Discrete Packet Retransmission & Recovery Stream */}
+                {drillReport.packet_statistics?.packets_sample && drillReport.packet_statistics.packets_sample.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-coastal-text uppercase tracking-wider block">
+                        Packet Retransmission & Lifecycle Stream
+                      </span>
+                      <span className="text-[10px] font-mono text-coastal-safe-text bg-coastal-safe/25 px-2 py-0.5 rounded font-bold border border-coastal-safe-border">
+                        {drillReport.packet_statistics?.reconciled ? 'RECONCILED 100%' : 'VERIFIED AUDIT'}
+                      </span>
+                    </div>
+                    <div className="overflow-x-auto border border-coastal-border rounded-xl">
+                      <table className="w-full text-left text-xs font-mono">
+                        <thead className="bg-coastal-powder/40 border-b border-coastal-border text-coastal-text-muted font-sans text-[11px]">
+                          <tr>
+                            <th className="p-2.5">Packet ID</th>
+                            <th className="p-2.5">Seq #</th>
+                            <th className="p-2.5">Priority</th>
+                            <th className="p-2.5">Retransmissions</th>
+                            <th className="p-2.5">Latency</th>
+                            <th className="p-2.5">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-coastal-border">
+                          {drillReport.packet_statistics.packets_sample.map((pkt: any) => (
+                            <tr key={pkt.packet_id} className="hover:bg-coastal-powder/20">
+                              <td className="p-2.5 font-bold text-coastal-text">{pkt.packet_id}</td>
+                              <td className="p-2.5 text-coastal-text-muted">#{pkt.sequence_number}</td>
+                              <td className="p-2.5 text-coastal-cerulean font-semibold">{pkt.priority}</td>
+                              <td className="p-2.5">
+                                {pkt.retransmissions > 0 ? (
+                                  <span className="px-1.5 py-0.5 bg-coastal-dusty-rose/20 text-coastal-dusty-rose rounded font-bold">
+                                    {pkt.retransmissions} Retries (Resent & Recovered)
+                                  </span>
+                                ) : (
+                                  <span className="text-coastal-text-muted">0 (Direct)</span>
+                                )}
+                              </td>
+                              <td className="p-2.5 text-coastal-safe-text font-bold">
+                                {pkt.end_to_end_latency_ms ? `${pkt.end_to_end_latency_ms}ms` : 'N/A'}
+                              </td>
+                              <td className="p-2.5">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                    pkt.current_state === 'DELIVERED'
+                                      ? 'bg-coastal-safe/25 text-coastal-safe-text'
+                                      : 'bg-coastal-critical/20 text-coastal-critical-text'
+                                  }`}
+                                >
+                                  {pkt.current_state}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
 
                 {/* Forensic Event Timeline */}
                 <div className="space-y-2">

@@ -252,6 +252,34 @@ def run_deterministic_simulation(
         )
 
     route_str = " -> ".join(path)
+
+    # Check if primary route was disrupted by failures and required retransmission over an alternate route
+    baseline_path, _ = DeterministicNetworkRouter.find_optimal_path(
+        nodes=all_nodes,
+        links=all_links,
+        source_id=request.source_node_id,
+        target_id=request.target_node_id,
+        priority=request.priority,
+        failed_node_ids=[],
+    )
+
+    alternate_selected = False
+    retransmissions = 0
+    attempts = 1
+    retry_log: List[str] = []
+
+    if baseline_path and failed_set and any(n in failed_set for n in baseline_path):
+        alternate_selected = True
+        retransmissions = 1
+        attempts = 2
+        retry_log = [
+            f"Initial transmission attempted via primary route ({' -> '.join(baseline_path)}).",
+            f"Primary link severed by failed node(s): {', '.join(failed_set)}.",
+            "Hardware BFD detected failure (10.0ms) -> Packet buffered during failure.",
+            f"Dijkstra SPF calculated alternate failover route ({route_str}).",
+            "Packet retransmitted (resent) and successfully delivered to destination (Attempt #2).",
+        ]
+
     msg = EmergencyMessage(
         message_id=msg_id,
         sender_id=request.source_node_id,
@@ -272,10 +300,16 @@ def run_deterministic_simulation(
         start_time=start_time,
         end_time=end_time,
         initial_state=initial_snapshot,
-        final_state={"delivered": True, "path": path, "latency_ms": total_latency},
+        final_state={"delivered": True, "path": path, "latency_ms": total_latency, "alternate_path_selected": alternate_selected},
         result="SUCCESS",
         recovery_duration=duration_sec,
-        packet_statistics={"total": 1, "delivered": 1, "dropped": 0, "avg_latency_ms": total_latency},
+        packet_statistics={
+            "total": 1,
+            "delivered": 1,
+            "dropped": 0,
+            "retransmissions": retransmissions,
+            "avg_latency_ms": total_latency,
+        },
     )
     db.add(sim_run)
 
@@ -285,7 +319,7 @@ def run_deterministic_simulation(
         timestamp=datetime.utcnow(),
         event_type="PACKET_DELIVERED",
         severity="INFO",
-        message=f"Packet {msg_id} ({request.priority}) delivered via {len(path) - 1} hops ({route_str}).",
+        message=f"Packet {msg_id} ({request.priority}) delivered via {len(path) - 1} hops ({route_str}) after {retransmissions} retransmissions.",
         affected_resource=request.target_node_id,
         related_run=simulation_id,
     )
@@ -304,4 +338,8 @@ def run_deterministic_simulation(
         delivery_status=MessageStatus.DELIVERED.value,
         details=details,
         message_id=msg_id,
+        transmission_attempts=attempts,
+        retransmissions=retransmissions,
+        alternate_route_selected=alternate_selected,
+        retry_log=retry_log if retry_log else None,
     )

@@ -127,6 +127,10 @@ export interface SimulationRunResponse {
   delivery_status: string;
   details: HopDetail[];
   message_id: string;
+  transmission_attempts?: number;
+  retransmissions?: number;
+  alternate_route_selected?: boolean;
+  retry_log?: string[];
 }
 
 export interface HealthStatus {
